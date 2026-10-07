@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     detector_interval_seconds: int = Field(5, alias="DETECTOR_INTERVAL_SECONDS")
     error_rate_threshold: float = Field(0.5, alias="ERROR_RATE_THRESHOLD")
     max_hypotheses: int = Field(3, alias="MAX_HYPOTHESES")
+    # Consecutive failed health/metrics polls before the detector raises an incident
+    health_failures_before_incident: int = Field(2, alias="HEALTH_FAILURES_BEFORE_INCIDENT")
 
     # ── Log Monitor Agent (tails the student-api log file) ───
     log_monitor_enabled: bool = Field(True, alias="LOG_MONITOR_ENABLED")

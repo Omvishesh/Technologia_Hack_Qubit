@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .config import get_settings
-from .models import Incident, IncidentStatus, IncidentReport
+from .models import Incident, IncidentStatus, IncidentReport, RecoveryResult
 from .timeline import add_event, format_timeline
 
 # Agents
@@ -81,6 +81,32 @@ def get_open_incident(stale_after_seconds: int = 300) -> Incident | None:
         if inc.status in _WITH_HUMAN or (now - inc.updated_at).total_seconds() < stale_after_seconds:
             return inc
     return None
+
+
+def close_self_recovered(detected_by: str) -> list[Incident]:
+    """
+    Close incidents raised by `detected_by` that are still awaiting approval although
+    the service has since recovered on its own (e.g. the backend was briefly
+    unreachable during a deploy). No remediation is executed. Without this the stale
+    incident stays open and makes the detectors ignore the next real outage.
+    """
+    closed = []
+    for inc in get_all_incidents():
+        if inc.detected_by != detected_by or inc.status != IncidentStatus.AWAITING_APPROVAL:
+            continue
+        inc.status = IncidentStatus.RESOLVED
+        inc.resolved_at = datetime.now(timezone.utc)
+        inc.recovery = RecoveryResult(
+            recovered=True,
+            health_check_passed=True,
+            db_connected=True,
+            details="Service recovered on its own — no remediation executed",
+        )
+        add_event(inc, "recovery", "Service recovered without intervention; incident closed automatically (no remediation executed)")
+        store_incident(inc)
+        logger.info("Closed %s: service recovered on its own", inc.id)
+        closed.append(inc)
+    return closed
 
 
 def last_closed_at() -> datetime | None:

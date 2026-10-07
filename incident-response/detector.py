@@ -15,7 +15,7 @@ from typing import Any, Callable, Awaitable
 
 from .config import get_settings
 from .models import Incident, IncidentStatus, Severity, MetricsSnapshot
-from .incident_manager import get_open_incident
+from .incident_manager import close_self_recovered, get_open_incident
 from .log_monitor import classify
 from .tools.metrics_collector import check_health, collect_metrics, parse_metrics_snapshot
 
@@ -47,7 +47,8 @@ class IncidentDetector:
         """
         Perform a single health/metrics check.
 
-        Returns an Incident only on the healthy -> unhealthy transition, else None.
+        Returns an Incident once per outage, after HEALTH_FAILURES_BEFORE_INCIDENT
+        consecutive failed polls, else None.
         """
         # 1. Check health endpoint
         health = await check_health()
@@ -55,21 +56,26 @@ class IncidentDetector:
         # 2. Check metrics endpoint
         metrics_raw = await collect_metrics()
 
-        # 3. Evaluate for incidents
+        # 3. Health is back: close health-raised incidents that recovered on their own
+        if health.get("healthy"):
+            close_self_recovered("health_check")
+
+        # 4. Evaluate for incidents
         incident = self._evaluate(health, metrics_raw)
 
         if incident:
+            incident.detected_by = "metrics" if health.get("healthy") else "health_check"
             self._consecutive_failures += 1
-            is_new_outage = self._last_healthy
             self._last_healthy = False
             logger.warning(
                 "Incident detected: %s (consecutive failures: %d)",
                 incident.error_message,
                 self._consecutive_failures,
             )
-            if not is_new_outage or get_open_incident():
-                # Same outage that already raised an incident (here or via the log
-                # monitor) — don't re-run the pipeline / re-send the approval email.
+            # Raise once per outage, only after N consecutive failed polls (so a container
+            # restart or a one-poll blip doesn't page the engineer), and never while another
+            # incident (from here or the log monitor) is already open.
+            if self._consecutive_failures != self._settings.health_failures_before_incident or get_open_incident():
                 return None
         else:
             if not self._last_healthy:

@@ -225,6 +225,7 @@ class Incident(BaseModel):
     error_code: Optional[str] = None        # e.g. "DB_CONNECTION_TIMEOUT"
     error_message: Optional[str] = None
     request_id: Optional[str] = None
+    detected_by: Optional[str] = None       # "health_check" | "metrics" | "log_monitor" | None (manual)
 
     # Pipeline outputs (populated as agents run)
     raw_logs: list[dict[str, Any]] = Field(default_factory=list)

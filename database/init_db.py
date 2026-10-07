@@ -4,6 +4,7 @@ Executes database/schema.sql and database/seed.sql against either
 PostgreSQL or SQLite depending on the configured DATABASE_URL.
 """
 import os
+import re
 import sys
 import sqlite3
 from pathlib import Path
@@ -15,7 +16,8 @@ SEED_FILE = BASE_DIR / "database" / "seed.sql"
 
 def get_database_url() -> str:
     db_url = os.getenv("DATABASE_URL", "sqlite:///./database/students.db")
-    return db_url
+    # psycopg2 doesn't understand SQLAlchemy's driver suffix (postgresql+psycopg2://)
+    return re.sub(r"^postgres(ql)?\+\w+://", "postgresql://", db_url)
 
 def init_sqlite(db_path: Path):
     print(f"Initializing SQLite database at: {db_path}")
