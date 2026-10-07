@@ -56,6 +56,12 @@ def sanitize_and_validate_sql(raw_sql: str) -> str:
     if len(statements) > 1:
         raise ValueError("Security violation: Multiple SQL statements detected via semicolon chaining.")
 
+    # If running on SQLite, translate ILIKE to LIKE for compatibility
+    from backend.app.config import settings
+    final_query = statements[0]
+    if settings.DATABASE_URL.startswith("sqlite"):
+        final_query = re.sub(r"\bILIKE\b", "LIKE", final_query, flags=re.IGNORECASE)
+
     # Return valid single query (without trailing semicolon to be safe with subqueries)
-    return statements[0]
+    return final_query
 

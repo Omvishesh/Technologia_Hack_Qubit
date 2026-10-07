@@ -29,10 +29,24 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: float = 3.0
 
     # LLM Settings
-    LLM_PROVIDER: str = "gemini" # gemini | openai | mock
+    PRIMARY_LLM_PROVIDER: str = "groq"
+    FALLBACK_LLM_PROVIDER: str = "nvidia"
+
+    # Groq (Primary)
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+
+    # NVIDIA NIM (Fallback)
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_MODEL: str = "meta/llama-3.2-11b-vision-instruct"
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+
+    # Legacy / Optional
+    LLM_PROVIDER: str = "groq"
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
-    LLM_MODEL: str = "gemini-2.0-flash"
+    LLM_MODEL: str = "qwen/qwen3.8-27b"
 
     # Logging
     LOG_LEVEL: str = "INFO"

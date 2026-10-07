@@ -1,6 +1,9 @@
 """
 Vectorless Structured RAG (Text-to-SQL + Grounded Response Generation).
-Supports Gemini, OpenAI, and an offline rule-based heuristic fallback.
+Supports:
+1. Primary Provider: Groq (ultra-fast inference)
+2. Alternate Fallback Provider: NVIDIA NIM (high quality model fallback)
+3. Safety Net Fallback: Offline deterministic heuristic + template synthesizer
 """
 import os
 import re
@@ -39,118 +42,151 @@ Highlight the students' names, CGPAs, departments, and matching skills.
 
 class LLMService:
     def __init__(self):
-        self.provider = settings.LLM_PROVIDER
-        self.gemini_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
-        self.openai_key = settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY", "")
-        self.model = settings.LLM_MODEL
+        # Groq (Primary)
+        self.groq_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
+        self.groq_model = settings.GROQ_MODEL
+        self.groq_base_url = settings.GROQ_BASE_URL.rstrip("/")
+
+        # NVIDIA NIM (Alternate Fallback)
+        self.nvidia_key = settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", "")
+        self.nvidia_model = settings.NVIDIA_MODEL
+        self.nvidia_base_url = settings.NVIDIA_BASE_URL.rstrip("/")
+
+        # Strategy
+        self.primary_provider = settings.PRIMARY_LLM_PROVIDER
+        self.fallback_provider = settings.FALLBACK_LLM_PROVIDER
 
     async def generate_sql(self, user_query: str) -> str:
-        """Call 1: Natural Language -> Safe SQL Query."""
-        # Try configured LLM provider if key available
-        if self.gemini_key and self.provider == "gemini":
+        """
+        Translates natural language to SQL with Primary -> Fallback -> Heuristic redundancy.
+        """
+        # 1. Attempt Primary Provider (Groq)
+        if self.groq_key and self.primary_provider == "groq":
             try:
-                return await self._call_gemini_sql(user_query)
+                sql = await self._call_openai_compatible_sql(
+                    base_url=self.groq_base_url,
+                    api_key=self.groq_key,
+                    model=self.groq_model,
+                    user_query=user_query,
+                    provider_name="Groq"
+                )
+                print(f"[LLM INFO] SQL generated successfully via Primary (Groq / {self.groq_model})")
+                return sql
             except Exception as e:
-                print(f"[LLM WARNING] Gemini SQL call failed ({e}). Falling back to offline heuristic.")
+                print(f"[LLM FALLBACK ALERT] Primary Groq call failed: {e}. Switching to alternate fallback (NVIDIA NIM)...")
 
-        if self.openai_key and self.provider == "openai":
+        # 2. Attempt Alternate Fallback Provider (NVIDIA NIM)
+        if self.nvidia_key:
             try:
-                return await self._call_openai_sql(user_query)
+                sql = await self._call_openai_compatible_sql(
+                    base_url=self.nvidia_base_url,
+                    api_key=self.nvidia_key,
+                    model=self.nvidia_model,
+                    user_query=user_query,
+                    provider_name="NVIDIA NIM"
+                )
+                print(f"[LLM INFO] SQL generated successfully via Alternate Fallback (NVIDIA NIM / {self.nvidia_model})")
+                return sql
             except Exception as e:
-                print(f"[LLM WARNING] OpenAI SQL call failed ({e}). Falling back to offline heuristic.")
+                print(f"[LLM FALLBACK ALERT] Alternate NVIDIA call failed: {e}. Switching to offline heuristic...")
 
-        # Offline heuristic fallback
+        # 3. Final Safety Net: Offline heuristic generator
+        print("[LLM INFO] Using offline heuristic SQL generator safety net.")
         return self._heuristic_sql_generator(user_query)
 
     async def synthesize_response(self, user_query: str, records: List[Dict[str, Any]]) -> str:
-        """Call 2: Retrieved SQL Rows + User Query -> Natural Language Answer."""
+        """
+        Synthesizes grounded conversational response with Primary -> Fallback -> Template redundancy.
+        """
         if not records:
             return "No matching student records found for your query."
 
-        if self.gemini_key and self.provider == "gemini":
+        # 1. Attempt Primary Provider (Groq)
+        if self.groq_key and self.primary_provider == "groq":
             try:
-                return await self._call_gemini_synthesis(user_query, records)
+                resp = await self._call_openai_compatible_synthesis(
+                    base_url=self.groq_base_url,
+                    api_key=self.groq_key,
+                    model=self.groq_model,
+                    user_query=user_query,
+                    records=records,
+                    provider_name="Groq"
+                )
+                return resp
             except Exception as e:
-                print(f"[LLM WARNING] Gemini synthesis failed ({e}). Falling back to grounded template.")
+                print(f"[LLM FALLBACK ALERT] Primary Groq synthesis failed: {e}. Switching to alternate fallback (NVIDIA NIM)...")
 
-        if self.openai_key and self.provider == "openai":
+        # 2. Attempt Alternate Fallback Provider (NVIDIA NIM)
+        if self.nvidia_key:
             try:
-                return await self._call_openai_synthesis(user_query, records)
+                resp = await self._call_openai_compatible_synthesis(
+                    base_url=self.nvidia_base_url,
+                    api_key=self.nvidia_key,
+                    model=self.nvidia_model,
+                    user_query=user_query,
+                    records=records,
+                    provider_name="NVIDIA NIM"
+                )
+                return resp
             except Exception as e:
-                print(f"[LLM WARNING] OpenAI synthesis failed ({e}). Falling back to grounded template.")
+                print(f"[LLM FALLBACK ALERT] Alternate NVIDIA synthesis failed: {e}. Switching to template synthesizer...")
 
-        # Grounded template synthesizer
+        # 3. Final Safety Net: Grounded template synthesis
         return self._template_synthesis(user_query, records)
 
-    async def _call_gemini_sql(self, user_query: str) -> str:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.gemini_key}"
-        payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": f"{SCHEMA_SYSTEM_PROMPT}\n\nUser Question: {user_query}"}]
-                }
-            ],
-            "generationConfig": {"temperature": 0.0}
+    async def _call_openai_compatible_sql(
+        self, base_url: str, api_key: str, model: str, user_query: str, provider_name: str
+    ) -> str:
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
         }
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return raw_text.strip()
-
-    async def _call_gemini_synthesis(self, user_query: str, records: List[Dict[str, Any]]) -> str:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.gemini_key}"
-        prompt = (
-            f"{SYNTHESIZER_SYSTEM_PROMPT}\n\n"
-            f"User Question: \"{user_query}\"\n\n"
-            f"Retrieved Records: {records}"
-        )
         payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2}
-        }
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-    async def _call_openai_sql(self, user_query: str) -> str:
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {self.openai_key}"}
-        payload = {
-            "model": "gpt-4o-mini",
+            "model": model,
             "messages": [
                 {"role": "system", "content": SCHEMA_SYSTEM_PROMPT},
                 {"role": "user", "content": user_query}
             ],
-            "temperature": 0.0
+            "temperature": 0.0,
+            "max_tokens": 250
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                raise RuntimeError(f"{provider_name} returned HTTP {resp.status_code}: {resp.text}")
             data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            content = data["choices"][0]["message"]["content"].strip()
+            return content
 
-    async def _call_openai_synthesis(self, user_query: str, records: List[Dict[str, Any]]) -> str:
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {self.openai_key}"}
-        prompt = f"User Question: \"{user_query}\"\n\nRetrieved Records: {records}"
+    async def _call_openai_compatible_synthesis(
+        self, base_url: str, api_key: str, model: str, user_query: str, records: List[Dict[str, Any]], provider_name: str
+    ) -> str:
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        prompt = (
+            f"User Question: \"{user_query}\"\n\n"
+            f"Retrieved Records ({len(records)} found):\n{records[:10]}"
+        )
         payload = {
-            "model": "gpt-4o-mini",
+            "model": model,
             "messages": [
                 {"role": "system", "content": SYNTHESIZER_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.2
+            "temperature": 0.2,
+            "max_tokens": 600
         }
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                raise RuntimeError(f"{provider_name} returned HTTP {resp.status_code}: {resp.text}")
             data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            content = data["choices"][0]["message"]["content"].strip()
+            return content
 
     def _heuristic_sql_generator(self, query: str) -> str:
         """Deterministic offline rule-based parser for common queries."""
@@ -219,4 +255,3 @@ class LLMService:
         return "\n".join(lines)
 
 llm_service = LLMService()
-
