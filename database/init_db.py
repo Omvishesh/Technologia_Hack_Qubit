@@ -48,7 +48,8 @@ def init_postgres(db_url: str):
                 schema_sql = SCHEMA_FILE.read_text(encoding="utf-8")
                 seed_sql = SEED_FILE.read_text(encoding="utf-8")
                 conn.execute(text(schema_sql))
-                conn.execute(text(seed_sql))
+                if conn.execute(text("SELECT COUNT(*) FROM students;")).scalar() == 0:
+                    conn.execute(text(seed_sql))
                 conn.commit()
                 res = conn.execute(text("SELECT COUNT(*) FROM students;")).fetchone()
                 print(f"[OK] Successfully initialized PostgreSQL database with {res[0]} student records.")
@@ -62,7 +63,10 @@ def init_postgres(db_url: str):
     schema_sql = SCHEMA_FILE.read_text(encoding="utf-8")
     seed_sql = SEED_FILE.read_text(encoding="utf-8")
     cursor.execute(schema_sql)
-    cursor.execute(seed_sql)
+    # Only seed an empty table, so an existing dataset (e.g. dummy_students.sql) isn't mixed with seed rows
+    cursor.execute("SELECT COUNT(*) FROM students;")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(seed_sql)
     conn.commit()
     cursor.execute("SELECT COUNT(*) FROM students;")
     count = cursor.fetchone()[0]
