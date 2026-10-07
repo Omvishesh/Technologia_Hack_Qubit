@@ -146,3 +146,4 @@ def parse_metrics_snapshot(raw: dict[str, Any]) -> MetricsSnapshot:
         error_rate=raw.get("error_rate"),
         avg_latency_ms=raw.get("avg_latency_ms") or raw.get("latency_ms"),
     )
+

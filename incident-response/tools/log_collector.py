@@ -103,3 +103,4 @@ async def collect_logs(
 async def collect_error_logs(limit: int = 50) -> dict[str, Any]:
     """Convenience: fetch only ERROR-level logs."""
     return await collect_logs(limit=limit, level="ERROR")
+

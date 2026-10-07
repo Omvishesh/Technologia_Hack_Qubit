@@ -30,7 +30,7 @@
 | **Shradha** | Cloud VM, Deployment & Environment | 10 | 1 / 10 | 🟡 In Progress |
 | **Dumani** | Frontend UI / UX & Email Design | 10 | 0 / 10 | 🟡 Pending |
 | **Saket** | Chatbot Backend & Failure Injection | 12 | 0 / 12 | 🟡 Pending |
-| **Om** | Downstream Incident Response & Agents | 14 | 0 / 14 | 🟡 Pending |
+| **Om** | Downstream Incident Response & Agents | 14 | 14 / 14 | 🟢 Completed |
 | **All** | Team Integration & End-to-End Demo | 6 | 0 / 6 | 🟡 Pending |
 
 ---
@@ -220,8 +220,8 @@
 
 **Primary Responsibility:** Error catalogue, multi-agent pipeline (Analyzer, Hypotheses, Verification, RCA, Remediation, Safety), email alerting, and automated recovery verification.
 
-- [ ] **4.1 Comprehensive Error Catalogue Definition**
-  - [ ] Define structured catalogue for 10 error scenarios:
+- [x] **4.1 Comprehensive Error Catalogue Definition**
+  - [x] Define structured catalogue for 10 error scenarios:
     1. Database Connection Exhaustion *(Primary demo)*
     2. Database Unavailable
     3. Database Query Timeout
@@ -232,82 +232,82 @@
     8. Invalid SQL Query
     9. Service Unavailable
     10. Dependency Failure
-  - [ ] For each error define: Symptoms, Log patterns, Verification tools, Expected results, Remediation action, Risk, Blast Radius.
+  - [x] For each error define: Symptoms, Log patterns, Verification tools, Expected results, Remediation action, Risk, Blast Radius.
 
-- [ ] **4.2 Incident Detector Daemon / Poller**
-  - [ ] Continuously monitor backend `GET /health`, `GET /metrics`, and log stream.
-  - [ ] Detect failure trigger (e.g. consecutive 500 errors or pool exhaustion).
-  - [ ] Create new Incident record with unique `incident_id`, severity `HIGH`, status `INVESTIGATING`.
+- [x] **4.2 Incident Detector Daemon / Poller**
+  - [x] Continuously monitor backend `GET /health`, `GET /metrics`, and log stream.
+  - [x] Detect failure trigger (e.g. consecutive 500 errors or pool exhaustion).
+  - [x] Create new Incident record with unique `incident_id`, severity `HIGH`, status `INVESTIGATING`.
 
-- [ ] **4.3 Agent 1: LLM Log Analysis Agent (`log_analyzer.py`)**
-  - [ ] Fetch recent logs via `GET /logs` and metrics via `GET /metrics`.
-  - [ ] Prompt LLM to extract key error signals, anomaly summary, and service failure context.
+- [x] **4.3 Agent 1: LLM Log Analysis Agent (`log_analyzer.py`)**
+  - [x] Fetch recent logs via `GET /logs` and metrics via `GET /metrics`.
+  - [x] Prompt LLM to extract key error signals, anomaly summary, and service failure context.
 
-- [ ] **4.4 Agent 2: Hypothesis Generator (`hypothesis_generator.py`)**
-  - [ ] Receive log analysis output.
-  - [ ] Generate **exactly top 3** ranked probable root causes with estimated confidence %:
+- [x] **4.4 Agent 2: Hypothesis Generator (`hypothesis_generator.py`)**
+  - [x] Receive log analysis output.
+  - [x] Generate **exactly top 3** ranked probable root causes with estimated confidence %:
     - *Hypothesis 1 (e.g. DB Connection Exhaustion - 75%)*
     - *Hypothesis 2 (e.g. DB Server Overload - 15%)*
     - *Hypothesis 3 (e.g. Backend API Overload - 10%)*
 
-- [ ] **4.5 Agent 3: Verification Tool Orchestrator (`verification_tools.py`)**
-  - [ ] Map each of the 3 hypotheses to its corresponding inspection tool.
-  - [ ] Call verification endpoints:
+- [x] **4.5 Agent 3: Verification Tool Orchestrator (`verification_tools.py`)**
+  - [x] Map each of the 3 hypotheses to its corresponding inspection tool.
+  - [x] Call verification endpoints:
     - `check_db_connections()`
     - `check_db_health()`
     - `check_backend_load()`
-  - [ ] Collect structured verification evidence.
+  - [x] Collect structured verification evidence.
 
-- [ ] **4.6 Agent 4: Root Cause Analyzer (`rca_agent.py`)**
-  - [ ] Synthesize initial logs + metrics + 3 hypotheses + tool verification evidence.
-  - [ ] Confirm single supported root cause (e.g., *"Database connection pool exhausted (100/100 active)"*).
-  - [ ] Assign definitive confidence level (High / Medium / Low).
+- [x] **4.6 Agent 4: Root Cause Analyzer (`rca_agent.py`)**
+  - [x] Synthesize initial logs + metrics + 3 hypotheses + tool verification evidence.
+  - [x] Confirm single supported root cause (e.g., *"Database connection pool exhausted (100/100 active)"*).
+  - [x] Assign definitive confidence level (High / Medium / Low).
 
-- [ ] **4.7 Agent 5: Remediation Proposal Agent (`remediation_agent.py`)**
-  - [ ] Formulate safe remediation proposal matching confirmed root cause:
+- [x] **4.7 Agent 5: Remediation Proposal Agent (`remediation_agent.py`)**
+  - [x] Formulate safe remediation proposal matching confirmed root cause:
     - Proposed action: `restart_student_api` or `clear_connection_pool`
     - Rationale: Stale connections causing pool exhaustion
     - Risk: `LOW`
     - Blast Radius: `Student Query API only`
 
-- [ ] **4.8 Agent 6: Safety & Permission Layer (`safety_agent.py`)**
-  - [ ] Enforce strict allowlist check:
+- [x] **4.8 Agent 6: Safety & Permission Layer (`safety_agent.py`)**
+  - [x] Enforce strict allowlist check:
     - ✅ Allowed: `restart_student_api`, `clear_connection_pool`, `scale_student_api`, `check_*`
     - ❌ Prohibited: `delete_database`, `modify_student_records`, `restart_entire_vm`, arbitrary shell
-  - [ ] Verify target service, action allowlist, blast radius, and human approval requirement.
-  - [ ] Block execution if any safety rule is violated.
+  - [x] Verify target service, action allowlist, blast radius, and human approval requirement.
+  - [x] Block execution if any safety rule is violated.
 
-- [ ] **4.9 Email Dispatcher Service**
-  - [ ] Integrate Dumani's HTML email template (`email/incident_template.html`).
-  - [ ] Populate template with incident ID, analysis, evidence, proposed fix, and signed approval links.
-  - [ ] Send email via SMTP (SendGrid, Mailgun, Gmail SMTP, or local mock for testing).
+- [x] **4.9 Email Dispatcher Service**
+  - [x] Integrate Dumani's HTML email template (`email/incident_template.html`).
+  - [x] Populate template with incident ID, analysis, evidence, proposed fix, and signed approval links.
+  - [x] Send email via SMTP (SendGrid, Mailgun, Gmail SMTP, or local mock for testing).
 
-- [ ] **4.10 Approval Webhook Listener & Remediation Trigger**
-  - [ ] Handle approve callback:
+- [x] **4.10 Approval Webhook Listener & Remediation Trigger**
+  - [x] Handle approve callback:
     - Validate incident state (must be `PENDING_APPROVAL`).
     - Execute allowlisted remediation tool via Saket's endpoint.
     - Transition incident status to `REMEDIATING`.
-  - [ ] Handle reject callback:
+  - [x] Handle reject callback:
     - Transition incident status to `REJECTED`, record reason, abort remediation.
 
-- [ ] **4.11 Post-Remediation Recovery Verification**
-  - [ ] Wait for service stabilization (e.g., 3-5 seconds).
-  - [ ] Poll `/health`, error rate, and query latency before vs after:
+- [x] **4.11 Post-Remediation Recovery Verification**
+  - [x] Wait for service stabilization (e.g., 3-5 seconds).
+  - [x] Poll `/health`, error rate, and query latency before vs after:
     - Before: Error Rate 63%, Latency 4.8s
     - After: Error Rate < 2%, Latency ~200ms
-  - [ ] If recovered → Mark `INCIDENT RESOLVED` ✅.
-  - [ ] If not recovered → Mark `RECOVERY FAILED`, trigger escalation ⚠️.
+  - [x] If recovered → Mark `INCIDENT RESOLVED` ✅.
+  - [x] If not recovered → Mark `RECOVERY FAILED`, trigger escalation ⚠️.
 
-- [ ] **4.12 Incident Timeline & State Tracker (`timeline.py`)**
-  - [ ] Persist chronological audit timeline:
+- [x] **4.12 Incident Timeline & State Tracker (`timeline.py`)**
+  - [x] Persist chronological audit timeline:
     - `INCIDENT_DETECTED` → `LOGS_ANALYZED` → `HYPOTHESES_GENERATED` → `TOOLS_VERIFIED` → `RCA_CONFIRMED` → `SAFETY_APPROVED` → `EMAIL_SENT` → `HUMAN_APPROVED` → `REMEDIATION_EXECUTED` → `RECOVERY_VERIFIED` → `RESOLVED`
-  - [ ] Expose `GET /incidents/{id}/timeline` for auditing/demo inspection.
+  - [x] Expose `GET /incidents/{id}/timeline` for auditing/demo inspection.
 
-- [ ] **4.13 End-to-End Orchestrator (`incident_manager.py`)**
-  - [ ] Tie all agents into a unified pipeline runner.
+- [x] **4.13 End-to-End Orchestrator (`incident_manager.py`)**
+  - [x] Tie all agents into a unified pipeline runner.
 
-- [ ] **4.14 Unit & Integration Tests for Agent Pipeline**
-  - [ ] Mock backend failure logs and test that the 6 agents run reliably end-to-end.
+- [x] **4.14 Unit & Integration Tests for Agent Pipeline**
+  - [x] Mock backend failure logs and test that the 6 agents run reliably end-to-end.
 
 ---
 

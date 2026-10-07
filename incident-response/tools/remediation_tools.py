@@ -147,3 +147,4 @@ async def call_remediation_tool(tool_name: str) -> ToolResult:
                   f"Allowed: {ALLOWED_REMEDIATION_ACTIONS}",
         )
     return await REMEDIATION_TOOLS[tool_name]()
+

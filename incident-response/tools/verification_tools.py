@@ -152,3 +152,4 @@ async def call_verification_tool(tool_name: str) -> ToolResult:
                   f"Available: {list(VERIFICATION_TOOLS.keys())}",
         )
     return await VERIFICATION_TOOLS[tool_name]()
+

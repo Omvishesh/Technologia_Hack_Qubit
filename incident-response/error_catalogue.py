@@ -336,3 +336,4 @@ def get_catalogue_summary() -> str:
             f"   Risk: {e.risk} | Blast Radius: {e.blast_radius}\n"
         )
     return "\n".join(lines)
+
