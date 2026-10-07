@@ -34,10 +34,16 @@ Rules:
 """
 
 SYNTHESIZER_SYSTEM_PROMPT = """You are a helpful student academic advisor assistant.
-Answer the user's question accurately and concisely using ONLY the provided database query results.
+Answer the user's question accurately using ONLY the provided database query results.
 Do not invent or assume information not present in the records.
-If no records matched, inform the user clearly.
-Highlight the students' names, CGPAs, departments, and matching skills.
+
+The full result set is shown to the user as a table directly below your answer, so:
+- Reply in 1-3 short sentences of plain natural language.
+- Do NOT list every record, and do NOT use bullet points, numbered lists, headings or tables.
+- State how many records matched (use the count given), then one or two useful highlights,
+  e.g. the highest CGPA, the most common department, or how many are placed.
+- For a single number (a count or an average), simply state it.
+- You may bold one or two key names or numbers with **double asterisks**.
 """
 
 class LLMService:
@@ -166,7 +172,7 @@ class LLMService:
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.2,
-            "max_tokens": 600
+            "max_tokens": 300
         }
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(url, json=payload, headers=headers)
@@ -228,18 +234,13 @@ class LLMService:
         return base_query
 
     def _template_synthesis(self, user_query: str, records: List[Dict[str, Any]]) -> str:
+        # Short summary only — the frontend renders the full records as a table below it.
         count = len(records)
-        lines = [f"Found {count} student(s) matching your request:\n"]
-        for idx, r in enumerate(records[:10], start=1):
-            name = r.get("name", "N/A")
-            dept = r.get("department", "N/A")
-            year = r.get("year", "N/A")
-            cgpa = r.get("cgpa", "N/A")
-            skills = r.get("skills", "N/A")
-            status = r.get("placement_status", "N/A")
-            lines.append(f"{idx}. **{name}** ({dept}, Year {year}) — **CGPA: {cgpa}** | Skills: *{skills}* | Status: `{status}`")
-        if count > 10:
-            lines.append(f"\n*(Showing top 10 of {count} matching records)*")
-        return "\n".join(lines)
+        summary = f"Found **{count}** record{'s' if count != 1 else ''} matching your request."
+        with_cgpa = [r for r in records if isinstance(r.get("cgpa"), (int, float)) and r.get("name")]
+        if with_cgpa:
+            top = max(with_cgpa, key=lambda r: r["cgpa"])
+            summary += f" The highest CGPA among them is **{top['name']}** with {top['cgpa']}."
+        return summary
 
 llm_service = LLMService()
