@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # ── 1. PostgreSQL Database ─────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: hackqubit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-students_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d students_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hackqubit-net
+
+  # ── 2. Student Chatbot Backend API ──────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: hackqubit-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/students_db
+      - LOG_FILE_PATH=/app/backend/logs/app.log
+      - LLM_PROVIDER=${LLM_PROVIDER:-groq}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - NVIDIA_MODEL=${NVIDIA_MODEL:-meta/llama-3.2-11b-vision-instruct}
+      - NVIDIA_BASE_URL=${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - shared-logs:/app/backend/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hackqubit-net
+
+  # ── 3. Multi-Agent Incident Response Service ───────────────
+  incident-response:
+    build:
+      context: .
+      dockerfile: Dockerfile.incident
+    container_name: hackqubit-incident-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - ENV=production
+      - INCIDENT_SERVICE_HOST=0.0.0.0
+      - INCIDENT_SERVICE_PORT=8001
+      - INCIDENT_SERVICE_URL=${INCIDENT_SERVICE_URL:-http://localhost:8001}
+      - BACKEND_URL=http://backend:8000
+      - LOG_FILE_PATH=/app/backend/logs/app.log
+      - DETECTOR_INTERVAL_SECONDS=${DETECTOR_INTERVAL_SECONDS:-5}
+      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD:-0.5}
+      - LLM_PROVIDER=${LLM_PROVIDER:-groq}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - NVIDIA_MODEL=${NVIDIA_MODEL:-meta/llama-3.2-11b-vision-instruct}
+      - NVIDIA_BASE_URL=${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DEVOPS_EMAIL=${DEVOPS_EMAIL:-omvishesh123@gmail.com}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-incident.alert08@gmail.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM:-incident.alert08@gmail.com}
+      - EMAIL_MOCK_MODE=${EMAIL_MOCK_MODE:-false}
+    volumes:
+      - shared-logs:/app/backend/logs:ro
+      - ./incident-response/emails:/app/incident-response/emails
+    depends_on:
+      - backend
+    networks:
+      - hackqubit-net
+
+  # ── 4. Chatbot Frontend UI ──────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend/chatbot-ui
+      dockerfile: Dockerfile
+    container_name: hackqubit-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - hackqubit-net
+
+volumes:
+  pgdata:
+  shared-logs:
+
+networks:
+  hackqubit-net:
+    driver: bridge

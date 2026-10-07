@@ -1,0 +1,75 @@
+name: Deploy Full Stack to GCP VM
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Services via Docker Compose
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH and Deploy to VM
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          ENV_FILE_CONTENT: ${{ secrets.ENV_PROD }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$VM_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Add VM to known hosts
+          ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
+
+          # Execute remote deployment commands on Google Cloud VM
+          ssh -i ~/.ssh/id_rsa "$VM_USER@$VM_HOST" << 'EOF'
+            set -e
+
+            echo "=== 1. PREPARING DEPLOYMENT DIRECTORY ==="
+            APP_DIR="/opt/HackQubit"
+            if [ ! -d "$APP_DIR" ]; then
+              APP_DIR="$HOME/HackQubit"
+            fi
+
+            if [ ! -d "$APP_DIR" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/Omvishesh/Technologia_Hack_Qubit.git "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            echo "=== 2. PULLING LATEST MAIN BRANCH ==="
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "=== 3. VERIFYING DOCKER & COMPOSE ==="
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+            fi
+
+            echo "=== 4. LAUNCHING CONTAINER STACK ==="
+            # Ensure Docker Compose builds and starts all 4 services
+            if docker compose version &> /dev/null; then
+              docker compose down --remove-orphans || true
+              docker compose up -d --build
+            else
+              docker-compose down --remove-orphans || true
+              docker-compose up -d --build
+            fi
+
+            echo "=== 5. HEALTH CHECK VERIFICATION ==="
+            sleep 10
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "Deployment completed successfully on $(hostname)!"
+          EOF
