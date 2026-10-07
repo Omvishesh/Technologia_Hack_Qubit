@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus AI Assistant | Autonomous Multi-Agent Incident Response</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+</head>
+<body>
+
+  <!-- Top App Navigation Bar -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-icon">🎓</div>
+      <div class="brand-text">
+        <h1>Campus AI Assistant</h1>
+        <div class="subtext">HackQubit 2.0 &bull; Multi-Agent Incident Response System</div>
+      </div>
+    </div>
+
+    <!-- View Switcher Tabs -->
+    <nav class="nav-tabs">
+      <button id="tab-chat" class="tab-btn active" onclick="switchView('chat')">
+        <span>💬</span> Chatbot Assistant
+      </button>
+      <button id="tab-devops" class="tab-btn" onclick="switchView('devops')">
+        <span>📧</span> DevOps Approval &amp; Email Portal
+      </button>
+    </nav>
+
+    <!-- Header Status & Settings -->
+    <div class="header-actions">
+      <div id="system-status-badge" class="status-badge" title="Live Backend Health Indicator">
+        <span class="status-dot"></span>
+        <span id="status-text">🟢 System Status: Healthy</span>
+      </div>
+      <button class="config-btn" onclick="openConfigModal()" title="Backend Connection Settings">
+        <span>⚙️</span> <span id="mode-label">Demo Mode</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="app-container">
+
+    <!-- VIEW 1: CHATBOT INTERFACE -->
+    <section id="chat-view" class="view-section">
+      <div class="chat-window">
+        
+        <!-- Live Incident Alert Banner (Shows when incident is detected) -->
+        <div id="incident-banner" class="incident-banner hidden">
+          <div class="incident-banner-content">
+            <span class="incident-banner-icon">🚨</span>
+            <div class="incident-banner-text">
+              <h4>INCIDENT DETECTED: Database Connection Exhaustion (INC-2026-018)</h4>
+              <p>Backend requests failing with 500 error. Multi-agent diagnostic completed; human approval requested.</p>
+            </div>
+          </div>
+          <button class="banner-action-btn" onclick="switchView('devops')">
+            Review Incident &amp; Approve &rarr;
+          </button>
+        </div>
+
+        <!-- Chat Conversation Messages -->
+        <div id="messages-container" class="messages-container">
+          <!-- Initial Welcome Message -->
+          <div class="message-row assistant">
+            <div class="avatar bot-avatar">🤖</div>
+            <div class="message-bubble">
+              <p><strong>Hello! I am your University Campus AI Assistant.</strong></p>
+              <p style="margin-top: 6px; color: #cbd5e1;">
+                I can query student academic data, CGPA leaderboards, placement eligibility, and department statistics directly from the database.
+              </p>
+              <p style="margin-top: 8px; font-size: 13px; color: #94a3b8;">
+                Try asking a question or click any of the sample prompts below:
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div id="typing-indicator" class="typing-indicator" style="display: none;">
+          <div class="avatar bot-avatar" style="width: 26px; height: 26px; font-size: 12px;">🤖</div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <span style="font-size: 12px; color: #94a3b8; margin-left: 6px;">Querying student database...</span>
+        </div>
+
+        <!-- Suggested Prompts / Failure Simulator Bar -->
+        <div class="suggestions-bar">
+          <button class="suggestion-chip" onclick="handlePromptClick('Show students with CGPA above 8.5')">
+            📊 Show students with CGPA &gt; 8.5
+          </button>
+          <button class="suggestion-chip" onclick="handlePromptClick('Which students are eligible for placement?')">
+            💼 Placement eligible students
+          </button>
+          <button class="suggestion-chip" onclick="handlePromptClick('Who has the highest CGPA?')">
+            🏆 Highest CGPA
+          </button>
+          <button class="suggestion-chip" onclick="handlePromptClick('Show CSE students')">
+            💻 Show CSE students
+          </button>
+          <button class="suggestion-chip" onclick="handlePromptClick('How many students have CGPA above 9?')">
+            📈 CGPA &gt; 9.0 count
+          </button>
+          <button class="suggestion-chip sim-btn" onclick="simulateIncident()" title="Inject controlled failure for demo">
+            ⚡ Simulate DB Connection Failure
+          </button>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="input-container">
+          <form id="chat-form" onsubmit="handleChatSubmit(event)">
+            <div class="input-box">
+              <input 
+                type="text" 
+                id="user-input" 
+                class="chat-input" 
+                placeholder="Ask about student records, placement, CGPA (e.g., 'Show students with CGPA above 8.5')..."
+                autocomplete="off"
+              />
+              <button type="submit" id="send-btn" class="send-btn" title="Send Query">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </form>
+          <div class="input-footer">
+            <span id="endpoint-status">Endpoint: <code style="color: #38bdf8;">POST /chat</code> (Ready)</span>
+            <span>Press Enter to send</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- VIEW 2: DEVOPS APPROVAL & EMAIL PORTAL -->
+    <section id="devops-view" class="view-section hidden">
+      <div class="portal-wrapper">
+        
+        <!-- Left Incident Control Panel -->
+        <div class="portal-sidebar">
+          
+          <div class="panel-card">
+            <div class="panel-title">
+              <span>Incident Controls</span>
+              <span id="incident-status-tag" style="color: #10b981; font-size: 11px;">SYSTEM STABLE</span>
+            </div>
+            
+            <button id="approve-action-btn" class="control-btn btn-success" onclick="approveIncidentAction()">
+              <span>✅</span> Approve Resolution Tool
+            </button>
+            <button id="reject-action-btn" class="control-btn btn-danger" onclick="rejectIncidentAction()">
+              <span>❌</span> Reject Proposed Resolution
+            </button>
+            <button class="control-btn btn-secondary" onclick="resetIncident()">
+              <span>🔄</span> Reset to Normal State
+            </button>
+          </div>
+
+          <!-- Real-time SRE Metrics -->
+          <div class="panel-card">
+            <div class="panel-title">
+              <span>Live Service Metrics</span>
+              <span style="font-size: 10px; color: #94a3b8;">student-api</span>
+            </div>
+            <div class="stat-grid">
+              <div class="stat-box">
+                <div class="stat-label">Active Connections</div>
+                <div id="stat-connections" class="stat-val">14 / 100</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Response Latency</div>
+                <div id="stat-latency" class="stat-val">180 ms</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Error Rate</div>
+                <div id="stat-error-rate" class="stat-val">0.0%</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Container Health</div>
+                <div id="stat-health" class="stat-val recovered">HEALTHY</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Incident Timeline -->
+          <div class="panel-card">
+            <div class="panel-title">
+              <span>Incident Response Timeline</span>
+            </div>
+            <div id="timeline-list" style="font-size: 12px; color: #cbd5e1; display: flex; flex-direction: column; gap: 8px;">
+              <div>🟢 <strong>13:40:00</strong> — Service running normally</div>
+              <div id="tl-incident" style="display: none; color: #f87171;">🔴 <strong>13:41:12</strong> — DB pool exhausted (100/100)</div>
+              <div id="tl-analyzer" style="display: none; color: #38bdf8;">🔍 <strong>13:41:15</strong> — LLM parsed logs &amp; verified tools</div>
+              <div id="tl-email" style="display: none; color: #fbbf24;">📧 <strong>13:41:18</strong> — Approval email sent to DevOps</div>
+              <div id="tl-resolved" style="display: none; color: #34d399;">✅ <strong>13:42:01</strong> — Restart tool executed. Recovered!</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Main: Live HTML Email Preview -->
+        <div class="portal-main">
+          <div class="email-frame-header">
+            <div class="email-frame-title">
+              <span>📧 DevOps Email Client Preview: <code>incident_template.html</code></span>
+            </div>
+            <div style="font-size: 11px; color: #94a3b8;">
+              To: <strong>devops-oncall@campus.edu</strong> &bull; From: <strong>ai-incident-response@campus.edu</strong>
+            </div>
+          </div>
+
+          <div class="email-frame-container">
+            <div class="email-container-inner" id="email-preview-content">
+              <!-- Rendered Email Content -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Configuration Modal -->
+  <div id="config-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 class="modal-title">API &amp; Backend Configuration</h3>
+      <div class="form-group">
+        <label class="form-label">Operation Mode</label>
+        <select id="config-mode" class="form-input" onchange="toggleModeSelect()">
+          <option value="demo">Demo / Mock Mode (Standalone, Zero Setup)</option>
+          <option value="live">Live Backend (Connects to Saket's API / Cloud VM)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Backend Base URL (Shradha's VM or Localhost)</label>
+        <input type="text" id="config-backend-url" class="form-input" value="http://localhost:8000" placeholder="http://34.x.x.x:8000 or http://localhost:8000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Health Check Poll Interval (seconds)</label>
+        <input type="number" id="config-poll-interval" class="form-input" value="5" min="2" max="60">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="control-btn btn-secondary" style="width: auto; margin: 0;" onclick="closeConfigModal()">Cancel</button>
+        <button class="control-btn btn-success" style="width: auto; margin: 0;" onclick="saveConfig()">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/mockData.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
+
