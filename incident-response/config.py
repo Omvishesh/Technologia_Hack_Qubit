@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     backend_url: str = Field("http://localhost:8000", alias="BACKEND_URL")
     incident_service_host: str = Field("0.0.0.0", alias="INCIDENT_SERVICE_HOST")
     incident_service_port: int = Field(8001, alias="INCIDENT_SERVICE_PORT")
+    incident_service_url: str = Field("http://localhost:8001", alias="INCIDENT_SERVICE_URL")
 
     # ── LLM ──────────────────────────────────────────────────
     llm_provider: str = Field("groq", alias="LLM_PROVIDER")

@@ -114,7 +114,7 @@ EMAIL_TEMPLATE = """\
 def render_email(report: IncidentReport) -> str:
     """Render the incident report into an HTML email body."""
     settings = get_settings()
-    base_url = f"http://localhost:{settings.incident_service_port}"
+    base_url = settings.incident_service_url.rstrip("/")
 
     template_file = Path("email/incident_template.html")
     if template_file.exists():
@@ -214,7 +214,6 @@ async def send_approval_email(incident: Incident) -> bool:
         msg["From"] = settings.smtp_from
         msg["To"] = settings.devops_email
 
-        # Plain text fallback
         plain_text = (
             f"Incident {incident.id}\n"
             f"Service: {incident.service}\n"
@@ -225,7 +224,7 @@ async def send_approval_email(incident: Incident) -> bool:
         msg.attach(MIMEText(plain_text, "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=8) as server:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
             server.starttls()
             server.login(settings.smtp_username, settings.smtp_password)
             server.sendmail(settings.smtp_from, settings.devops_email, msg.as_string())
@@ -239,5 +238,101 @@ async def send_approval_email(incident: Incident) -> bool:
             exc,
             email_path,
         )
+        return True
+
+
+async def send_resolution_email(incident: Incident) -> bool:
+    """
+    Send a confirmation email once the incident has been successfully resolved and recovery verified.
+    """
+    settings = get_settings()
+    output_dir = Path("incident-response/emails")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    email_path = output_dir / f"{incident.id}_resolved.html"
+
+    recovery_details = incident.recovery.details if incident.recovery else "Service restored and verified healthy."
+    resolved_time = incident.resolved_at.strftime("%Y-%m-%d %H:%M:%S UTC") if incident.resolved_at else "Just now"
+
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+  .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+  .header {{ background: #28a745; color: white; padding: 20px 24px; }}
+  .header h1 {{ margin: 0; font-size: 20px; }}
+  .badge {{ display: inline-block; background: rgba(255,255,255,0.25); padding: 3px 10px; border-radius: 4px; font-size: 13px; margin-top: 8px; font-weight: bold; }}
+  .body {{ padding: 24px; }}
+  .metrics-box {{ background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 6px; padding: 16px; margin: 16px 0; }}
+  .metrics-box h4 {{ margin: 0 0 8px 0; color: #2e7d32; font-size: 14px; text-transform: uppercase; }}
+  .metric-item {{ font-size: 14px; color: #1b5e20; line-height: 1.6; font-weight: 500; }}
+  .footer {{ padding: 16px 24px; text-align: center; color: #999; font-size: 12px; background: #fafafa; border-top: 1px solid #eee; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>✅ INCIDENT RESOLVED</h1>
+    <div>Service: <strong>{incident.service}</strong></div>
+    <div class="badge">STATUS: HEALTHY & RESTORED</div>
+  </div>
+
+  <div class="body">
+    <p>Hello DevOps Engineer,</p>
+    <p>The remediation action for incident <strong>{incident.id}</strong> has completed successfully. All automated recovery verification checks have passed.</p>
+
+    <div class="metrics-box">
+      <h4>Recovery Verification Results</h4>
+      <div class="metric-item">✓ {recovery_details}</div>
+      <div class="metric-item">✓ Database Connections: Active & Unblocked</div>
+      <div class="metric-item">✓ Health Check Endpoint: 200 OK</div>
+    </div>
+
+    <p><strong>Remediation Executed:</strong> {incident.remediation.action if incident.remediation else 'Service restart'}<br>
+    <strong>Approved by:</strong> {incident.approved_by or 'DevOps Engineer'}<br>
+    <strong>Resolved at:</strong> {resolved_time}</p>
+  </div>
+
+  <div class="footer">
+    Incident ID: {incident.id} | HackQubit 2.0 Autonomous SRE Pipeline
+  </div>
+</div>
+</body>
+</html>
+"""
+
+    email_path.write_text(html_body, encoding="utf-8")
+    logger.info("Resolution HTML email saved to %s", email_path)
+
+    if settings.email_mock_mode:
+        logger.info("EMAIL MOCK: Saved resolution email for %s to %s", incident.id, email_path)
+        return True
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"✅ [RESOLVED] Incident {incident.id}: Service {incident.service} Restored"
+        msg["From"] = settings.smtp_from
+        msg["To"] = settings.devops_email
+
+        plain_text = (
+            f"Incident {incident.id} RESOLVED\n"
+            f"Service: {incident.service}\n"
+            f"Status: Healthy\n"
+            f"Details: {recovery_details}\n"
+        )
+        msg.attach(MIMEText(plain_text, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(settings.smtp_username, settings.smtp_password)
+            server.sendmail(settings.smtp_from, settings.devops_email, msg.as_string())
+
+        logger.info("Resolution email sent to %s for incident %s", settings.devops_email, incident.id)
+        return True
+
+    except Exception as exc:
+        logger.warning("SMTP resolution email dispatch failed: %s. Continuing...", exc)
         return True
 

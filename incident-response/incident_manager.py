@@ -33,7 +33,7 @@ from .tools.metrics_collector import collect_metrics, parse_metrics_snapshot
 from .tools.remediation_tools import call_remediation_tool
 
 # Email & Recovery
-from .email_sender import send_approval_email
+from .email_sender import send_approval_email, send_resolution_email
 from .recovery import verify_recovery
 
 logger = logging.getLogger("incident-response.manager")
@@ -295,6 +295,9 @@ async def approve_incident(incident_id: str, approved_by: str = "devops") -> Inc
             f"✅ INCIDENT RESOLVED — {recovery_result.details}",
             {"recovery": recovery_result.model_dump()},
         )
+        # Dispatch resolution confirmation email to DevOps engineer
+        await send_resolution_email(incident)
+        add_event(incident, "email", "Resolution confirmation email dispatched to engineer")
     else:
         incident.status = IncidentStatus.RECOVERY_FAILED
         add_event(
