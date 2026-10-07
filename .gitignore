@@ -57,3 +57,5 @@ Thumbs.db
 .vscode/
 *.swp
 
+# Nested clone
+Technologia_Hack_Qubit/

@@ -29,7 +29,7 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Shradha** | Cloud VM, Deployment & Environment | 10 | 1 / 10 | 🟡 In Progress |
 | **Dumani** | Frontend UI / UX & Email Design | 10 | 0 / 10 | 🟡 Pending |
-| **Saket** | Chatbot Backend & Failure Injection | 12 | 0 / 12 | 🟡 Pending |
+| **Saket** | Chatbot Backend & Failure Injection | 12 | 12 / 12 | 🟢 Completed |
 | **Om** | Downstream Incident Response & Agents | 14 | 0 / 14 | 🟡 Pending |
 | **All** | Team Integration & End-to-End Demo | 6 | 0 / 6 | 🟡 Pending |
 
@@ -155,64 +155,64 @@
 
 **Primary Responsibility:** Student database, backend APIs, LLM query generation, structured logging, failure simulation endpoints, and allowlisted resolution endpoints.
 
-- [ ] **3.1 PostgreSQL Database Schema & Synthetic Data Seed (`database/seed.sql`)**
-  - [ ] Design PostgreSQL (`pg`) table `students`:
+- [x] **3.1 PostgreSQL Database Schema & Synthetic Data Seed (`database/seed.sql`)**
+  - [x] Design PostgreSQL (`pg`) table `students`:
     - `student_id` (PK, SERIAL), `name`, `department`, `year`, `cgpa` (NUMERIC), `email`, `skills` (TEXT), `placement_status`
     - Add performance indexes on `cgpa` and `department`.
-  - [ ] Populate database with realistic synthetic student records (50-100+ records across departments).
+  - [x] Populate database with realistic synthetic student records (50-100+ records across departments).
 
-- [ ] **3.2 Backend Service Scaffolding (FastAPI / Express / Flask)**
-  - [ ] Setup backend project structure (`backend/app`, `backend/routes`, `backend/services`).
-  - [ ] Configure PostgreSQL connection pool (e.g., `asyncpg` / `psycopg2` / SQLAlchemy pool) with configurable pool limits (e.g., `max_size=10`).
+- [x] **3.2 Backend Service Scaffolding (FastAPI / Express / Flask)**
+  - [x] Setup backend project structure (`backend/app`, `backend/routes`, `backend/services`).
+  - [x] Configure PostgreSQL connection pool (e.g., `asyncpg` / `psycopg2` / SQLAlchemy pool) with configurable pool limits (e.g., `max_size=10`).
 
-- [ ] **3.3 Chatbot Endpoint (`POST /chat`) — Vectorless Structured RAG Pipeline**
-  - [ ] Receive natural language user question (e.g., *"which student has cgps greater than 8, and have skills in ai."*).
-  - [ ] **LLM Call 1 (Text-to-SQL):** Provide PostgreSQL schema in system prompt to translate question into safe SQL query.
-  - [ ] **Data Retrieval:** Execute generated SQL query against PostgreSQL `students` table via connection pool.
-  - [ ] **LLM Call 2 (Grounded Synthesis):** Pass retrieved rows + user query to LLM to generate user-friendly response.
-  - [ ] Format and return structured response payload (including answer, rows, generated SQL, latency) back to frontend.
+- [x] **3.3 Chatbot Endpoint (`POST /chat`) — Vectorless Structured RAG Pipeline**
+  - [x] Receive natural language user question (e.g., *"which student has cgps greater than 8, and have skills in ai."*).
+  - [x] **LLM Call 1 (Text-to-SQL):** Provide PostgreSQL schema in system prompt to translate question into safe SQL query.
+  - [x] **Data Retrieval:** Execute generated SQL query against PostgreSQL `students` table via connection pool.
+  - [x] **LLM Call 2 (Grounded Synthesis):** Pass retrieved rows + user query to LLM to generate user-friendly response.
+  - [x] Format and return structured response payload (including answer, rows, generated SQL, latency) back to frontend.
 
-- [ ] **3.4 Health & Metrics Endpoints**
-  - [ ] `GET /health`: Returns service health status, DB connectivity status.
-  - [ ] `GET /metrics`: Returns latency (ms), error rate (%), active DB connections, total requests.
-  - [ ] `GET /students`: Simple query endpoint for direct student data inspection.
+- [x] **3.4 Health & Metrics Endpoints**
+  - [x] `GET /health`: Returns service health status, DB connectivity status.
+  - [x] `GET /metrics`: Returns latency (ms), error rate (%), active DB connections, total requests.
+  - [x] `GET /students`: Simple query endpoint for direct student data inspection.
 
-- [ ] **3.5 Structured JSON Logging**
-  - [ ] Implement JSON logging format:
+- [x] **3.5 Structured JSON Logging**
+  - [x] Implement JSON logging format:
     ```json
     { "timestamp": "...", "service": "student-api", "request_id": "...", "endpoint": "/chat", "status": 500, "error": "..." }
     ```
-  - [ ] Write logs to shared file (`backend/logs/app.log`) and expose `GET /logs` endpoint with tail/filter support.
+  - [x] Write logs to shared file (`backend/logs/app.log`) and expose `GET /logs` endpoint with tail/filter support.
 
-- [ ] **3.6 Failure Simulation Endpoints (`/simulate/*`)**
-  - [ ] `POST /simulate/connection-exhaustion`: Exhaust DB connection pool (Primary Demo Scenario).
-  - [ ] `POST /simulate/db-timeout`: Introduce sleep/delay on DB queries to simulate query timeout.
-  - [ ] `POST /simulate/db-unavailable`: Drop DB connection / stop DB responding.
-  - [ ] `POST /simulate/api-delay`: Introduce heavy artificial latency.
+- [x] **3.6 Failure Simulation Endpoints (`/simulate/*`)**
+  - [x] `POST /simulate/connection-exhaustion`: Exhaust DB connection pool (Primary Demo Scenario).
+  - [x] `POST /simulate/db-timeout`: Introduce sleep/delay on DB queries to simulate query timeout.
+  - [x] `POST /simulate/db-unavailable`: Drop DB connection / stop DB responding.
+  - [x] `POST /simulate/api-delay`: Introduce heavy artificial latency.
 
-- [ ] **3.7 Verification Tool Endpoints (For Om's Agents)**
-  - [ ] `GET /tools/check-db-connections`: Return current active connections vs max pool limit.
-  - [ ] `GET /tools/check-db-health`: Return DB ping response and query latency.
-  - [ ] `GET /tools/check-backend-load`: Return current request queue depth and CPU/memory stats.
+- [x] **3.7 Verification Tool Endpoints (For Om's Agents)**
+  - [x] `GET /tools/check-db-connections`: Return current active connections vs max pool limit.
+  - [x] `GET /tools/check-db-health`: Return DB ping response and query latency.
+  - [x] `GET /tools/check-backend-load`: Return current request queue depth and CPU/memory stats.
 
-- [ ] **3.8 Allowlisted Resolution Tool Endpoints**
-  - [ ] `POST /tools/restart-student-api`: Gracefully reset/restart API process or container.
-  - [ ] `POST /tools/clear-connection-pool`: Force-close leaked/idle DB connections and refresh pool.
-  - [ ] `POST /tools/scale-student-api`: Adjust worker concurrency.
+- [x] **3.8 Allowlisted Resolution Tool Endpoints**
+  - [x] `POST /tools/restart-student-api`: Gracefully reset/restart API process or container.
+  - [x] `POST /tools/clear-connection-pool`: Force-close leaked/idle DB connections and refresh pool.
+  - [x] `POST /tools/scale-student-api`: Adjust worker concurrency.
 
-- [ ] **3.9 Incident Approval & Rejection Handlers**
-  - [ ] `POST /incidents/{id}/approve`: Validate incident ID, invoke approved resolution tool, trigger recovery verification.
-  - [ ] `POST /incidents/{id}/reject`: Log decision, mark incident rejected, prevent any tool execution.
+- [x] **3.9 Incident Approval & Rejection Handlers**
+  - [x] `POST /incidents/{id}/approve`: Validate incident ID, invoke approved resolution tool, trigger recovery verification.
+  - [x] `POST /incidents/{id}/reject`: Log decision, mark incident rejected, prevent any tool execution.
 
-- [ ] **3.10 Error Handling & Connection Leak Mechanics**
-  - [ ] Ensure connection exhaustion scenario causes `/chat` to reliably fail with clear error signals for the detector.
+- [x] **3.10 Error Handling & Connection Leak Mechanics**
+  - [x] Ensure connection exhaustion scenario causes `/chat` to reliably fail with clear error signals for the detector.
 
-- [ ] **3.11 Backend Integration Tests**
-  - [ ] Test `/chat` with valid queries.
-  - [ ] Trigger `/simulate/connection-exhaustion` and verify `/chat` outputs 500 error logs.
+- [x] **3.11 Backend Integration Tests**
+  - [x] Test `/chat` with valid queries.
+  - [x] Trigger `/simulate/connection-exhaustion` and verify `/chat` outputs 500 error logs.
 
-- [ ] **3.12 Backend API Documentation**
-  - [ ] Document all endpoints, payloads, and tool contracts for Dumani and Om.
+- [x] **3.12 Backend API Documentation**
+  - [x] Document all endpoints, payloads, and tool contracts for Dumani and Om.
 
 ---
 
