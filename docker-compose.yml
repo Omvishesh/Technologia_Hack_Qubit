@@ -37,7 +37,7 @@ services:
       - ENV=production
       - BACKEND_HOST=0.0.0.0
       - BACKEND_PORT=8000
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/students_db
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres:5432/students_db
       - LOG_FILE_PATH=/app/backend/logs/app.log
       - LLM_PROVIDER=${LLM_PROVIDER:-groq}
       - GROQ_API_KEY=${GROQ_API_KEY}
