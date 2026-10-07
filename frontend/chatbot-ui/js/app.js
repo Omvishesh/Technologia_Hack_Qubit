@@ -2,10 +2,20 @@
 
 const stored = (key) => { try { return localStorage.getItem(key); } catch (e) { return null; } };
 
+// Services run on the same host as this page: localhost in dev, the VM's address when deployed.
+const PAGE_HOST = location.hostname || 'localhost';
+const IS_LOCAL_PAGE = ['localhost', '127.0.0.1'].includes(PAGE_HOST);
+const defaultUrl = (port) => `${location.protocol === 'https:' ? 'https:' : 'http:'}//${PAGE_HOST}:${port}`;
+// A saved localhost URL only makes sense when the page itself is local (older builds saved it by default).
+const storedUrl = (key) => {
+  const url = stored(key);
+  return url && !IS_LOCAL_PAGE && /\/\/(localhost|127\.0\.0\.1)[:/]/.test(url) ? null : url;
+};
+
 const CONFIG = {
   mode: stored('app_mode') || 'live', // 'live' or 'demo'
-  backendUrl: (stored('backend_url') || 'http://localhost:8000').replace(/\/+$/, ''),
-  incidentUrl: (stored('incident_url') || 'http://localhost:8001').replace(/\/+$/, ''),
+  backendUrl: (storedUrl('backend_url') || defaultUrl(8000)).replace(/\/+$/, ''),
+  incidentUrl: (storedUrl('incident_url') || defaultUrl(8001)).replace(/\/+$/, ''),
   pollInterval: parseInt(stored('poll_interval') || '5', 10),
 };
 
@@ -339,6 +349,7 @@ function renderTracker(inc, note, t = tracker) {
     ['Root cause identified', cause ? `${cause}${confidence != null ? ` · ${confidence}% confidence` : ''}` : '',
       cause && at >= 4 ? 'done' : 'pending'],
     ['DevOps approval', status === 'rejected' ? 'The engineer rejected the automated fix — manual investigation needed'
+      : status === 'resolved' && !inc.approved_by ? 'Not needed — the service recovered on its own'
       : at === 7 ? `Fix proposed: ${action || 'remediation'} · approval email sent`
       : at >= 8 || status === 'recovery_failed' ? `Approved: ${action || 'remediation'}`
       : at >= 4 ? 'Preparing fix and running safety checks…' : '',
@@ -439,8 +450,8 @@ function closeSettings() {
 
 function saveSettings() {
   CONFIG.mode = els['config-mode'].value;
-  CONFIG.backendUrl = (els['config-backend-url'].value.trim() || 'http://localhost:8000').replace(/\/+$/, '');
-  CONFIG.incidentUrl = (els['config-incident-url'].value.trim() || 'http://localhost:8001').replace(/\/+$/, '');
+  CONFIG.backendUrl = (els['config-backend-url'].value.trim() || defaultUrl(8000)).replace(/\/+$/, '');
+  CONFIG.incidentUrl = (els['config-incident-url'].value.trim() || defaultUrl(8001)).replace(/\/+$/, '');
   CONFIG.pollInterval = Math.max(2, parseInt(els['config-poll-interval'].value, 10) || 5);
   try {
     localStorage.setItem('app_mode', CONFIG.mode);

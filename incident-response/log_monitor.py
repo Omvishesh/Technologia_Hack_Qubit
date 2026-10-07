@@ -158,6 +158,7 @@ class LogMonitor:
             error_message=f"{what} {latest.get('endpoint', 'API')} request(s) in the last "
                           f"{self._settings.log_window_seconds}s — {detail}",
             request_id=latest.get("request_id"),
+            detected_by="log_monitor",
             severity=Severity.HIGH,
             status=IncidentStatus.DETECTED,
             raw_logs=bad[-20:],

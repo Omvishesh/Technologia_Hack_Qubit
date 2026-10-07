@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-students_db}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql:ro
@@ -45,10 +45,20 @@ services:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - NVIDIA_MODEL=${NVIDIA_MODEL:-meta/llama-3.2-11b-vision-instruct}
       - NVIDIA_BASE_URL=${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
+      - GROQ_API_KEY_3=${GROQ_API_KEY_3:-}
+      - NVIDIA_API_KEY_2=${NVIDIA_API_KEY_2:-}
+      - NVIDIA_API_KEY_3=${NVIDIA_API_KEY_3:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - shared-logs:/app/backend/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +89,10 @@ services:
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - NVIDIA_MODEL=${NVIDIA_MODEL:-meta/llama-3.2-11b-vision-instruct}
       - NVIDIA_BASE_URL=${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
+      - GROQ_API_KEY_3=${GROQ_API_KEY_3:-}
+      - NVIDIA_API_KEY_2=${NVIDIA_API_KEY_2:-}
+      - NVIDIA_API_KEY_3=${NVIDIA_API_KEY_3:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DEVOPS_EMAIL=${DEVOPS_EMAIL:-omvishesh123@gmail.com}
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
@@ -91,7 +105,8 @@ services:
       - shared-logs:/app/backend/logs:ro
       - ./incident-response/emails:/app/incident-response/emails
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - hackqubit-net
 
