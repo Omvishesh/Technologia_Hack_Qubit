@@ -45,7 +45,7 @@ class IncidentDetector:
         """
         Perform a single health/metrics check.
 
-        Returns an Incident if a problem is detected, else None.
+        Returns an Incident only on the healthy -> unhealthy transition, else None.
         """
         # 1. Check health endpoint
         health = await check_health()
@@ -58,12 +58,17 @@ class IncidentDetector:
 
         if incident:
             self._consecutive_failures += 1
+            is_new_outage = self._last_healthy
             self._last_healthy = False
             logger.warning(
                 "Incident detected: %s (consecutive failures: %d)",
                 incident.error_message,
                 self._consecutive_failures,
             )
+            if not is_new_outage:
+                # Same outage that already raised an incident — don't re-run the
+                # pipeline (and re-send the approval email) on every poll.
+                return None
         else:
             if not self._last_healthy:
                 logger.info("Backend recovered — health checks passing again")

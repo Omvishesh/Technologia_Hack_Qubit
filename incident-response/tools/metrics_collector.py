@@ -99,10 +99,20 @@ async def check_health() -> dict[str, Any]:
 
             if response.status_code == 200:
                 data = response.json()
+                # student-api answers 200 even when degraded (e.g. pool exhausted),
+                # so trust the body's verdict when it gives one.
+                healthy = data.get("healthy", data.get("status", "healthy") in ("healthy", "ok"))
+                error = None
+                if not healthy:
+                    error = (
+                        data.get("error")
+                        or (data.get("database") or {}).get("error")
+                        or f"Backend status: {data.get('status')}"
+                    )
                 return {
-                    "healthy": True,
+                    "healthy": healthy,
                     "data": data,
-                    "error": None,
+                    "error": error,
                     "latency_ms": round(elapsed_ms, 2),
                 }
             else:
@@ -137,13 +147,21 @@ def parse_metrics_snapshot(raw: dict[str, Any]) -> MetricsSnapshot:
 
     Handles varying key names from the backend gracefully.
     """
+    def first(*keys: str) -> Any:
+        # First non-None value — 0 is a valid reading, so don't use `or`.
+        return next((raw[k] for k in keys if raw.get(k) is not None), None)
+
+    error_rate = raw.get("error_rate")
+    if error_rate is None and raw.get("error_rate_percent") is not None:
+        error_rate = raw["error_rate_percent"] / 100  # student-api reports a percentage
+
     return MetricsSnapshot(
         cpu_percent=raw.get("cpu_percent"),
         memory_mb=raw.get("memory_mb"),
         active_http_requests=raw.get("active_http_requests"),
-        db_pool_active=raw.get("db_pool_active") or raw.get("active_connections"),
-        db_pool_max=raw.get("db_pool_max") or raw.get("max_pool_size"),
-        error_rate=raw.get("error_rate"),
-        avg_latency_ms=raw.get("avg_latency_ms") or raw.get("latency_ms"),
+        db_pool_active=first("db_pool_active", "active_connections", "active_db_connections"),
+        db_pool_max=first("db_pool_max", "max_pool_size", "max_db_connections"),
+        error_rate=error_rate,
+        avg_latency_ms=first("avg_latency_ms", "latency_ms"),
     )
 
