@@ -1,0 +1,75 @@
+"""
+Centralized configuration for the Incident Response System.
+
+Loads settings from the project-level .env file and exposes them
+as a typed Pydantic Settings object.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
+
+# Resolve project root (parent of incident-response/)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+class Settings(BaseSettings):
+    """All incident-response configuration, loaded from .env."""
+
+    # ── General ──────────────────────────────────────────────
+    env: str = Field("development", alias="ENV")
+    debug: str = Field("True", alias="DEBUG")
+
+    @property
+    def is_debug(self) -> bool:
+        """Parse debug as bool, tolerating non-boolean values like 'release'."""
+        return self.debug.lower() in ("true", "1", "yes")
+
+    # ── Service Endpoints ────────────────────────────────────
+    backend_url: str = Field("http://localhost:8000", alias="BACKEND_URL")
+    incident_service_host: str = Field("0.0.0.0", alias="INCIDENT_SERVICE_HOST")
+    incident_service_port: int = Field(8001, alias="INCIDENT_SERVICE_PORT")
+
+    # ── LLM ──────────────────────────────────────────────────
+    llm_provider: str = Field("gemini", alias="LLM_PROVIDER")
+    gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
+    openai_api_key: str = Field("", alias="OPENAI_API_KEY")
+    llm_model: str = Field("gemini-2.0-flash", alias="LLM_MODEL")
+
+    # ── Incident Detection ───────────────────────────────────
+    detector_interval_seconds: int = Field(5, alias="DETECTOR_INTERVAL_SECONDS")
+    error_rate_threshold: float = Field(0.5, alias="ERROR_RATE_THRESHOLD")
+    max_hypotheses: int = Field(3, alias="MAX_HYPOTHESES")
+
+    # ── Logging ──────────────────────────────────────────────
+    log_level: str = Field("INFO", alias="LOG_LEVEL")
+    log_file_path: str = Field("backend/logs/app.log", alias="LOG_FILE_PATH")
+
+    # ── Email / SMTP ─────────────────────────────────────────
+    devops_email: str = Field("devops-engineer@hackqubit.local", alias="DEVOPS_EMAIL")
+    smtp_host: str = Field("smtp.gmail.com", alias="SMTP_HOST")
+    smtp_port: int = Field(587, alias="SMTP_PORT")
+    smtp_username: str = Field("", alias="SMTP_USERNAME")
+    smtp_password: str = Field("", alias="SMTP_PASSWORD")
+    smtp_from: str = Field("incident-system@hackqubit.local", alias="SMTP_FROM")
+    email_mock_mode: bool = Field(True, alias="EMAIL_MOCK_MODE")
+
+    model_config = {
+        "env_file": str(PROJECT_ROOT / ".env"),
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",          # ignore vars we don't define
+        "populate_by_name": True,    # allow both alias and field name
+    }
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    """Return a cached Settings singleton."""
+    return Settings()
+
