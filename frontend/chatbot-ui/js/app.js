@@ -5,6 +5,7 @@ const stored = (key) => { try { return localStorage.getItem(key); } catch (e) { 
 const CONFIG = {
   mode: stored('app_mode') || 'live', // 'live' or 'demo'
   backendUrl: (stored('backend_url') || 'http://localhost:8000').replace(/\/+$/, ''),
+  incidentUrl: (stored('incident_url') || 'http://localhost:8001').replace(/\/+$/, ''),
   pollInterval: parseInt(stored('poll_interval') || '5', 10),
 };
 
@@ -12,11 +13,22 @@ const $ = (id) => document.getElementById(id);
 const els = {};
 let pollTimer = null;
 let busy = false;
+let tracker = null;          // live view of the incident-response pipeline for the current outage
+let lastFailedQuery = '';
 
 document.addEventListener('DOMContentLoaded', () => {
   ['main', 'messages', 'typing', 'chat-scroll', 'chat-form', 'user-input', 'send-btn', 'sidebar',
    'status-box', 'status-dot', 'status-label', 'nav-docs', 'config-modal',
-   'config-mode', 'config-backend-url', 'config-poll-interval'].forEach(id => { els[id] = $(id); });
+   'config-mode', 'config-backend-url', 'config-incident-url', 'config-poll-interval'].forEach(id => { els[id] = $(id); });
+
+  // "Ask again" button shown once an incident is resolved
+  els.messages.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-retry]');
+    if (!btn || busy) return;
+    els['user-input'].value = btn.dataset.retry;
+    updateSendState();
+    els['chat-form'].requestSubmit();
+  });
 
   const input = els['user-input'];
   input.addEventListener('input', () => { autoGrow(); updateSendState(); });
@@ -74,7 +86,11 @@ async function handleSubmit(e) {
     } else {
       data.http_status = res.status;
       appendErrorResponse(data);
-      if (res.status >= 500) setStatus('incident', data.message || `HTTP ${res.status}`);
+      if (res.status >= 500) {
+        setStatus('incident', data.message || `HTTP ${res.status}`);
+        lastFailedQuery = query;
+        startIncidentTracking();
+      }
     }
   } catch (err) {
     const timedOut = err && err.name === 'TimeoutError';
@@ -91,6 +107,7 @@ function getMockData(query) {
 }
 
 function newChat() {
+  stopIncidentTracking();
   els.messages.innerHTML = '';
   setChatMode(false);
   els['user-input'].value = '';
@@ -234,6 +251,136 @@ function renderMarkdown(md) {
   return out.join('');
 }
 
+// ── Incident pipeline (incident-response service) ────────
+
+const PIPELINE = ['detected', 'analyzing', 'hypotheses_generated', 'verifying', 'root_cause_confirmed',
+  'remediation_proposed', 'safety_checked', 'awaiting_approval', 'approved', 'resolving', 'resolved'];
+const TERMINAL = ['resolved', 'rejected', 'recovery_failed'];
+const STAGE_TEXT = {
+  detected: 'Incident opened',
+  analyzing: 'Collecting logs and metrics, analysing errors…',
+  hypotheses_generated: 'Generated root-cause hypotheses…',
+  verifying: 'Running verification tools against the backend…',
+};
+
+function startIncidentTracking() {
+  if (CONFIG.mode !== 'live' || tracker) return;
+  const el = document.createElement('div');
+  el.className = 'msg bot';
+  tracker = { el, id: null, status: null, startedAt: Date.now(), failures: 0, timer: null };
+  pushMessage(el);
+  renderTracker(null);
+  pollIncident();
+  tracker.timer = setInterval(pollIncident, 3000);
+}
+
+function stopIncidentTracking() {
+  if (tracker) clearInterval(tracker.timer);
+  tracker = null;
+}
+
+async function pollIncident() {
+  const t = tracker;
+  if (!t) return;
+  try {
+    if (!t.id) {
+      const res = await fetch(`${CONFIG.incidentUrl}/incidents`, { signal: AbortSignal.timeout(3000) });
+      const { incidents = [] } = await res.json(); // newest first
+      // An outage that's still open, else one opened around the time this request failed.
+      const inc = incidents.find(i => !TERMINAL.includes(i.status))
+        || incidents.find(i => Date.parse(i.created_at) >= t.startedAt - 60000);
+      if (!inc) {
+        if (Date.now() - t.startedAt > 90000) finishTracking('missing');
+        return;
+      }
+      t.id = inc.id;
+    }
+    const res = await fetch(`${CONFIG.incidentUrl}/incidents/${encodeURIComponent(t.id)}`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const inc = await res.json();
+    t.failures = 0;
+    t.inc = inc;
+    if (inc.status !== t.status) {
+      t.status = inc.status;
+      renderTracker(inc);
+    }
+    if (TERMINAL.includes(inc.status)) finishTracking(inc.status, inc);
+  } catch (e) {
+    t.failures += 1;
+    if (t.failures === 3) renderTracker(t.inc || null, `Can't reach the incident service at ${CONFIG.incidentUrl} — still retrying…`);
+    if (!t.id && Date.now() - t.startedAt > 90000) finishTracking('missing');
+  }
+}
+
+function finishTracking(outcome, inc) {
+  const t = tracker;
+  stopIncidentTracking();
+  if (outcome === 'missing') {
+    renderTracker(null, `No incident was raised. Is the incident service running at ${CONFIG.incidentUrl}?`, t);
+  } else if (outcome === 'resolved') {
+    pollHealth();
+  }
+}
+
+function renderTracker(inc, note, t = tracker) {
+  if (!t) return;
+  const status = inc ? inc.status : null;
+  const at = PIPELINE.indexOf(status);
+  const cause = inc && inc.root_cause && inc.root_cause.cause;
+  const confidence = inc && inc.root_cause ? Math.round(inc.root_cause.confidence * 100) : null;
+  const action = inc && inc.remediation && inc.remediation.action;
+
+  // [title, detail, state] — state: done | active | pending | failed
+  const steps = [
+    ['Incident detected', inc ? `${inc.id} · ${inc.error_message || inc.error_code || ''}` : 'Notifying the incident response system…',
+      inc ? 'done' : 'active'],
+    ['AI agents investigating', at >= 4 ? 'Logs analysed, hypotheses verified with backend tools' : (STAGE_TEXT[status] || ''),
+      at >= 4 ? 'done' : inc ? 'active' : 'pending'],
+    ['Root cause identified', cause ? `${cause}${confidence != null ? ` · ${confidence}% confidence` : ''}` : '',
+      cause && at >= 4 ? 'done' : 'pending'],
+    ['DevOps approval', status === 'rejected' ? 'The engineer rejected the automated fix — manual investigation needed'
+      : at === 7 ? `Fix proposed: ${action || 'remediation'} · approval email sent`
+      : at >= 8 || status === 'recovery_failed' ? `Approved: ${action || 'remediation'}`
+      : at >= 4 ? 'Preparing fix and running safety checks…' : '',
+      status === 'rejected' ? 'failed' : at >= 8 || status === 'recovery_failed' ? 'done' : at >= 4 ? 'active' : 'pending'],
+    ['Fix applied & recovery verified', status === 'resolved' ? ((inc.recovery && inc.recovery.details) || 'Service restored')
+      : status === 'recovery_failed' ? 'Recovery could not be verified — escalated'
+      : at >= 8 ? 'Applying the fix and checking service health…' : '',
+      status === 'resolved' ? 'done' : status === 'recovery_failed' ? 'failed' : at >= 8 ? 'active' : 'pending'],
+  ];
+
+  const title = status === 'resolved' ? 'Service restored'
+    : status === 'rejected' || status === 'recovery_failed' ? 'Incident needs manual attention'
+    : 'Incident response in progress';
+  const tone = status === 'resolved' ? 'ok' : status === 'rejected' || status === 'recovery_failed' ? 'bad' : '';
+  const retry = status === 'resolved' && lastFailedQuery
+    ? `<button type="button" class="retry-btn" data-retry="${escapeHTML(lastFailedQuery)}">Ask again: “${escapeHTML(lastFailedQuery)}”</button>` : '';
+
+  t.el.innerHTML = `
+    <span class="mini-ring" aria-hidden="true"></span>
+    <div class="body">
+      <div class="tracker ${tone}">
+        <div class="tracker-head">
+          <span class="tracker-title">${title}</span>
+          ${inc ? `<span class="tracker-id">${escapeHTML(inc.id)}</span>` : ''}
+        </div>
+        <ol class="steps">
+          ${steps.map(([name, detail, state]) => `
+            <li class="step ${state}">
+              <span class="step-dot"></span>
+              <div>
+                <div class="step-title">${escapeHTML(name)}</div>
+                ${detail ? `<div class="step-detail">${escapeHTML(detail)}</div>` : ''}
+              </div>
+            </li>`).join('')}
+        </ol>
+        ${note ? `<div class="tracker-note">${escapeHTML(note)}</div>` : ''}
+        ${retry}
+      </div>
+    </div>`;
+  scrollToBottom();
+}
+
 // ── Backend health ───────────────────────────────────────
 
 async function pollHealth() {
@@ -281,6 +428,7 @@ function applyConfig() {
 function openSettings() {
   els['config-mode'].value = CONFIG.mode;
   els['config-backend-url'].value = CONFIG.backendUrl;
+  els['config-incident-url'].value = CONFIG.incidentUrl;
   els['config-poll-interval'].value = CONFIG.pollInterval;
   els['config-modal'].hidden = false;
 }
@@ -292,10 +440,12 @@ function closeSettings() {
 function saveSettings() {
   CONFIG.mode = els['config-mode'].value;
   CONFIG.backendUrl = (els['config-backend-url'].value.trim() || 'http://localhost:8000').replace(/\/+$/, '');
+  CONFIG.incidentUrl = (els['config-incident-url'].value.trim() || 'http://localhost:8001').replace(/\/+$/, '');
   CONFIG.pollInterval = Math.max(2, parseInt(els['config-poll-interval'].value, 10) || 5);
   try {
     localStorage.setItem('app_mode', CONFIG.mode);
     localStorage.setItem('backend_url', CONFIG.backendUrl);
+    localStorage.setItem('incident_url', CONFIG.incidentUrl);
     localStorage.setItem('poll_interval', String(CONFIG.pollInterval));
   } catch (e) { /* storage unavailable — settings last for this session only */ }
   applyConfig();

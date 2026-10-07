@@ -30,6 +30,7 @@ from .incident_manager import (
     reject_incident,
 )
 from .detector import IncidentDetector
+from .log_monitor import LogMonitor
 from .timeline import format_timeline
 
 logger = logging.getLogger("incident-response.api")
@@ -52,8 +53,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Detector instance (started on app startup)
+# Detectors (started on app startup): /health + /metrics poller, and the log-file monitor
 _detector: IncidentDetector | None = None
+_log_monitor: LogMonitor | None = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -81,8 +83,8 @@ class RejectionRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup():
-    """Start the incident detector polling loop."""
-    global _detector
+    """Start the incident detector polling loop and the log monitor."""
+    global _detector, _log_monitor
 
     async def on_incident(incident: Incident):
         logger.info("Auto-detected incident: %s", incident.id)
@@ -91,14 +93,27 @@ async def startup():
     _detector = IncidentDetector(on_incident=on_incident)
     # Start detector in background
     asyncio.create_task(_detector.start())
+    if get_settings().log_monitor_enabled:
+        _log_monitor = LogMonitor(on_incident=on_incident)
+        asyncio.create_task(_log_monitor.start())
     logger.info("Incident Response API started on port %s", get_settings().incident_service_port)
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    """Stop the detector."""
+    """Stop the detector and the log monitor."""
     if _detector:
         _detector.stop()
+    if _log_monitor:
+        _log_monitor.stop()
+
+
+@app.get("/monitor")
+async def monitor_status():
+    """Log monitor status: where it reads from, lines seen, incidents raised."""
+    if _log_monitor is None:
+        return {"running": False, "reason": "LOG_MONITOR_ENABLED is false"}
+    return _log_monitor.status()
 
 
 # ─────────────────────────────────────────────────────────────

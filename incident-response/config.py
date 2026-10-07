@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     error_rate_threshold: float = Field(0.5, alias="ERROR_RATE_THRESHOLD")
     max_hypotheses: int = Field(3, alias="MAX_HYPOTHESES")
 
+    # ── Log Monitor Agent (tails the student-api log file) ───
+    log_monitor_enabled: bool = Field(True, alias="LOG_MONITOR_ENABLED")
+    log_monitor_interval_seconds: float = Field(1.0, alias="LOG_MONITOR_INTERVAL_SECONDS")
+    log_window_seconds: int = Field(60, alias="LOG_WINDOW_SECONDS")
+    # Failures of unknown kind / slow requests needed in the window before raising
+    log_error_threshold: int = Field(2, alias="LOG_ERROR_THRESHOLD")
+    log_slow_request_ms: float = Field(6000, alias="LOG_SLOW_REQUEST_MS")
+
     # ── Logging ──────────────────────────────────────────────
     log_level: str = Field("INFO", alias="LOG_LEVEL")
     log_file_path: str = Field("backend/logs/app.log", alias="LOG_FILE_PATH")

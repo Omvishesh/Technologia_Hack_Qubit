@@ -15,6 +15,8 @@ from typing import Any, Callable, Awaitable
 
 from .config import get_settings
 from .models import Incident, IncidentStatus, Severity, MetricsSnapshot
+from .incident_manager import get_open_incident
+from .log_monitor import classify
 from .tools.metrics_collector import check_health, collect_metrics, parse_metrics_snapshot
 
 logger = logging.getLogger("incident-response.detector")
@@ -65,9 +67,9 @@ class IncidentDetector:
                 incident.error_message,
                 self._consecutive_failures,
             )
-            if not is_new_outage:
-                # Same outage that already raised an incident — don't re-run the
-                # pipeline (and re-send the approval email) on every poll.
+            if not is_new_outage or get_open_incident():
+                # Same outage that already raised an incident (here or via the log
+                # monitor) — don't re-run the pipeline / re-send the approval email.
                 return None
         else:
             if not self._last_healthy:
@@ -111,7 +113,8 @@ class IncidentDetector:
         if not health.get("healthy", False):
             error_msg = health.get("error", "Health check failed")
             incident = Incident(
-                error_code="HEALTH_CHECK_FAILED",
+                # Same error-catalogue classification the log monitor uses
+                error_code=classify({"status": 500, "error": error_msg}),
                 error_message=error_msg,
                 severity=Severity.HIGH,
                 status=IncidentStatus.DETECTED,

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+  .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .header { background: #28a745; color: white; padding: 20px 24px; }
+  .header h1 { margin: 0; font-size: 20px; }
+  .badge { display: inline-block; background: rgba(255,255,255,0.25); padding: 3px 10px; border-radius: 4px; font-size: 13px; margin-top: 8px; font-weight: bold; }
+  .body { padding: 24px; }
+  .metrics-box { background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 6px; padding: 16px; margin: 16px 0; }
+  .metrics-box h4 { margin: 0 0 8px 0; color: #2e7d32; font-size: 14px; text-transform: uppercase; }
+  .metric-item { font-size: 14px; color: #1b5e20; line-height: 1.6; font-weight: 500; }
+  .footer { padding: 16px 24px; text-align: center; color: #999; font-size: 12px; background: #fafafa; border-top: 1px solid #eee; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>✅ INCIDENT RESOLVED</h1>
+    <div>Service: <strong>student-api</strong></div>
+    <div class="badge">STATUS: HEALTHY & RESTORED</div>
+  </div>
+
+  <div class="body">
+    <p>Hello DevOps Engineer,</p>
+    <p>The remediation action for incident <strong>INC-BF33E73A</strong> has completed successfully. All automated recovery verification checks have passed.</p>
+
+    <div class="metrics-box">
+      <h4>Recovery Verification Results</h4>
+      <div class="metric-item">✓ Health check: PASSED | Latency: 2433ms -> 2433ms</div>
+      <div class="metric-item">✓ Database Connections: Active & Unblocked</div>
+      <div class="metric-item">✓ Health Check Endpoint: 200 OK</div>
+    </div>
+
+    <p><strong>Remediation Executed:</strong> Clear and recycle the database connection pool to release stale/leaked connections<br>
+    <strong>Approved by:</strong> devops<br>
+    <strong>Resolved at:</strong> 2026-10-07 13:42:32 UTC</p>
+  </div>
+
+  <div class="footer">
+    Incident ID: INC-BF33E73A | HackQubit 2.0 Autonomous SRE Pipeline
+  </div>
+</div>
+</body>
+</html>

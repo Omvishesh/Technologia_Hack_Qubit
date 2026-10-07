@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incident Response Required - INC-BF33E73A</title>
+  <style>
+    /* Reset & Base Styles */
+    body, table, td, p, a, li, blockquote {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+    table {
+      border-spacing: 0;
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      border: 0;
+      outline: none;
+      text-decoration: none;
+    }
+
+    /* Container */
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #0b0f19;
+      padding: 30px 10px;
+    }
+    .main-card {
+      max-width: 640px;
+      margin: 0 auto;
+      background-color: #1e293b;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      padding: 24px 30px;
+      text-align: left;
+    }
+    .header-badge {
+      display: inline-block;
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 8px;
+    }
+    .header-title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+    .header-sub {
+      margin: 6px 0 0 0;
+      font-size: 13px;
+      color: #fecaca;
+    }
+
+    /* Content Body */
+    .content-body {
+      padding: 28px 30px;
+    }
+
+    /* Meta Grid */
+    .meta-table {
+      width: 100%;
+      margin-bottom: 24px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background-color: #0f172a;
+    }
+    .meta-td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .meta-label {
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    .meta-value {
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+    .severity-badge-high {
+      background-color: #dc2626;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* Section Styles */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 20px 0 8px 0;
+    }
+    .section-desc {
+      font-size: 14px;
+      color: #cbd5e1;
+      margin: 0 0 16px 0;
+    }
+
+    /* Code & Log Blocks */
+    .log-box {
+      background-color: #090d16;
+      border: 1px solid #334155;
+      border-left: 4px solid #ef4444;
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 12px;
+      color: #fca5a5;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    /* Analysis Box */
+    .analysis-box {
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .analysis-row {
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .analysis-row:last-child {
+      margin-bottom: 0;
+    }
+    .hypothesis-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #1e293b;
+      color: #94a3b8;
+      margin-right: 6px;
+    }
+
+    /* Root Cause Highlight */
+    .root-cause-banner {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%);
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 22px;
+    }
+    .root-cause-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f87171;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .root-cause-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 0 6px 0;
+    }
+    .confidence-pill {
+      display: inline-block;
+      background-color: #15803d;
+      color: #dcfce7;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+
+    /* Verification Evidence Table */
+    .evidence-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 20px 0;
+    }
+    .evidence-item {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 6px 10px;
+      background: #090d16;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      color: #a7f3d0;
+      border-left: 3px solid #10b981;
+    }
+
+    /* Remediation Proposal Card */
+    .remediation-card {
+      background-color: #0f172a;
+      border: 1px solid #0284c7;
+      border-left: 5px solid #0284c7;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .remediation-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin: 0 0 6px 0;
+    }
+    .remediation-meta {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    /* Action Buttons CTA */
+    .action-container {
+      background-color: #090d16;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 24px 20px;
+      text-align: center;
+      margin-top: 24px;
+    }
+    .action-notice {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .btn-approve {
+      display: inline-block;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 28px;
+      border-radius: 8px;
+      margin: 6px 8px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    .btn-reject {
+      display: inline-block;
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 24px;
+      border-radius: 8px;
+      margin: 6px 8px;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 11px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="main-card">
+      
+      <!-- Top Alert Header -->
+      <div class="header-banner">
+        <span class="header-badge">Automated AI Incident Response</span>
+        <h1 class="header-title">🚨 INCIDENT RESPONSE REQUIRED</h1>
+        <p class="header-sub">Incident ID: <strong>INC-BF33E73A</strong> &bull; Multi-agent investigation completed. Remediation proposal awaiting confirmation.</p>
+      </div>
+
+      <!-- Content Area -->
+      <div class="content-body">
+        
+        <!-- Key Incident Metadata Table -->
+        <table class="meta-table">
+          <tr>
+            <td class="meta-td" style="width: 50%;">
+              <div class="meta-label">Incident ID</div>
+              <div class="meta-value">INC-BF33E73A</div>
+            </td>
+            <td class="meta-td" style="width: 50%;">
+              <div class="meta-label">Severity</div>
+              <div class="meta-value"><span class="severity-badge-high">HIGH</span></div>
+            </td>
+          </tr>
+          <tr>
+            <td class="meta-td">
+              <div class="meta-label">Target Service</div>
+              <div class="meta-value">student-api</div>
+            </td>
+            <td class="meta-td">
+              <div class="meta-label">Detection Time</div>
+              <div class="meta-value">2026-10-07T13:40:55.739859+00:00</div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- What Happened -->
+        <div class="section-title">What Happened</div>
+        <p class="section-desc">PoolTimeoutError: Active pool exhausted</p>
+
+        <!-- Log Summary -->
+        <div class="section-title">Log Summary</div>
+        <div class="log-box">The Student Query API is experiencing intermittent database connection pool exhaustion, resulting in 500 errors for approximately 16.7% of requests. The dominant failure mode is a PoolTimeoutError triggered when the active pool reaches its maximum capacity of 5, typically during concurrent query execution. The system remains partially operational with successful requests occurring between failures, but the current metrics indicate the pool is currently saturated.</div>
+
+        <!-- Hypotheses Generated -->
+        <div class="section-title">Top 3 Hypotheses Generated</div>
+        <div class="analysis-box">
+          
+          <div class="analysis-row">
+            <span class="hypothesis-tag">Hypothesis 1</span>
+            <strong>Database Connection Pool Exhaustion</strong> — 85% initial estimate
+          </div>
+          
+          <div class="analysis-row">
+            <span class="hypothesis-tag">Hypothesis 2</span>
+            <strong>Database Query Timeout Causing Connection Hold</strong> — 10% initial estimate
+          </div>
+          
+          <div class="analysis-row">
+            <span class="hypothesis-tag">Hypothesis 3</span>
+            <strong>Backend Overload Leading to Connection Saturation</strong> — 5% initial estimate
+          </div>
+          
+        </div>
+
+        <!-- Tool Verification Evidence -->
+        <div class="section-title">Verification Evidence (Tool Calls)</div>
+        <ul class="evidence-list">
+          
+          <li class="evidence-item">✓ check_db_connections reported active_connections: 5 and max_pool_size: 5, with pool_exhausted: true.</li>
+          
+          <li class="evidence-item">✓ check_db_health confirmed the database is reachable (ping_latency_ms: 0.0) but cannot execute queries due to 'PoolTimeoutError: Active pool exhausted'.</li>
+          
+          <li class="evidence-item">✓ check_backend_load showed low system load (cpu_percent: 0.0, active_http_requests: 6), ruling out backend overload as the primary cause.</li>
+          
+        </ul>
+
+        <!-- Confirmed Root Cause -->
+        <div class="root-cause-banner">
+          <div class="root-cause-header">Confirmed Root Cause</div>
+          <h2 class="root-cause-title">Database connection pool exhaustion due to the active pool reaching its maximum capacity of 5, causing new requests to timeout while waiting for a connection.</h2>
+          <div>
+            <span class="confidence-pill">Confidence: 98%</span>
+            <span style="font-size: 12px; color: #94a3b8; margin-left: 8px;">Multi-Agent Consensus Verified</span>
+          </div>
+        </div>
+
+        <!-- Proposed Remediation -->
+        <div class="section-title">Proposed Remediation Action</div>
+        <div class="remediation-card">
+          <h3 class="remediation-title">Action: Clear and recycle the database connection pool to release stale/leaked connections</h3>
+          <div class="remediation-meta">
+            <strong>Safety Check:</strong> ✅ PASSED (Allowlisted Action) &nbsp;|&nbsp; 
+            <strong>Risk:</strong> LOW &nbsp;|&nbsp; 
+            <strong>Blast Radius:</strong> Student Query API only — brief reconnection delay
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-container">
+          <div class="action-notice">
+            ⚠️ <strong>Human-in-the-Loop Gate:</strong> The remediation tool will NOT be executed until you approve below.
+          </div>
+          <table align="center" style="margin: 0 auto;">
+            <tr>
+              <td align="center">
+                <a href="http://localhost:8001/incidents/INC-BF33E73A/approve" class="btn-approve" target="_blank">
+                  ✅ APPROVE RESOLUTION
+                </a>
+                <a href="http://localhost:8001/incidents/INC-BF33E73A/reject" class="btn-reject" target="_blank">
+                  ❌ REJECT RESOLUTION
+                </a>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 14px 0 0 0; font-size: 11px; color: #64748b;">
+            Endpoints targeted: <code>POST /incidents/INC-BF33E73A/approve</code> &bull; <code>POST /incidents/INC-BF33E73A/reject</code>
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        HackQubit 2.0 &bull; Problem 18 &bull; Autonomous Multi-Agent Incident Response System<br>
+        Confidential automated message generated by AI Incident Manager.
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

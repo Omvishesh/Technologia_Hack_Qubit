@@ -61,6 +61,34 @@ def store_incident(incident: Incident) -> None:
     _incidents[incident.id] = incident
 
 
+_TERMINAL = {IncidentStatus.RESOLVED, IncidentStatus.REJECTED, IncidentStatus.RECOVERY_FAILED}
+_WITH_HUMAN = {IncidentStatus.AWAITING_APPROVAL, IncidentStatus.APPROVED, IncidentStatus.RESOLVING}
+
+
+def get_open_incident(stale_after_seconds: int = 300) -> Incident | None:
+    """
+    The newest incident still being handled, if any — detectors use this so one
+    outage produces one incident (and one approval email).
+
+    Incidents waiting on the engineer or mid-remediation always count. An analysis
+    stage that hasn't progressed for `stale_after_seconds` (e.g. the pipeline
+    crashed) doesn't, so it can't block detection forever.
+    """
+    now = datetime.now(timezone.utc)
+    for inc in get_all_incidents():
+        if inc.status in _TERMINAL:
+            continue
+        if inc.status in _WITH_HUMAN or (now - inc.updated_at).total_seconds() < stale_after_seconds:
+            return inc
+    return None
+
+
+def last_closed_at() -> datetime | None:
+    """When the most recent finished incident was closed (resolved / rejected / failed)."""
+    closed = [inc.resolved_at or inc.updated_at for inc in _incidents.values() if inc.status in _TERMINAL]
+    return max(closed, default=None)
+
+
 # ─────────────────────────────────────────────────────────────
 # Full pipeline orchestration
 # ─────────────────────────────────────────────────────────────
