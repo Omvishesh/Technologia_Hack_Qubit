@@ -59,3 +59,7 @@ Thumbs.db
 
 # Nested clone
 Technologia_Hack_Qubit/
+
+# Node / Yarn PnP
+.pnp
+.pnp.js

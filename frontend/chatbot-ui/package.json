@@ -1,0 +1,24 @@
+{
+  "name": "campus-ai-assistant-frontend",
+  "version": "1.0.0",
+  "description": "Frontend UI/UX for Campus AI Assistant & Multi-Agent Incident Response System (HackQubit 2.0)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve": "npx serve ."
+  },
+  "keywords": [
+    "incident-response",
+    "ai-agent",
+    "chatbot",
+    "devops",
+    "hackqubit"
+  ],
+  "author": "Dumani (Person 2 - Frontend UI/UX)",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
+

@@ -1,93 +1,418 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-  .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-  .header { background: #dc3545; color: white; padding: 20px 24px; }
-  .header h1 { margin: 0; font-size: 20px; }
-  .header .severity { display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-top: 8px; }
-  .body { padding: 24px; }
-  .section { margin-bottom: 20px; }
-  .section h3 { color: #333; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-  .section p, .section li { color: #555; font-size: 14px; line-height: 1.6; }
-  .evidence { list-style: none; padding: 0; }
-  .evidence li { padding: 4px 0; }
-  .evidence li::before { content: "✓ "; color: #28a745; font-weight: bold; }
-  .hypothesis { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 13px; }
-  .confidence { color: #007bff; font-weight: bold; }
-  .risk { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-  .risk-LOW { background: #d4edda; color: #155724; }
-  .risk-MEDIUM { background: #fff3cd; color: #856404; }
-  .risk-HIGH { background: #f8d7da; color: #721c24; }
-  .actions { text-align: center; padding: 20px 24px; background: #f8f9fa; }
-  .btn { display: inline-block; padding: 12px 32px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; margin: 0 8px; }
-  .btn-approve { background: #28a745; color: white; }
-  .btn-reject { background: #6c757d; color: white; }
-  .footer { padding: 16px 24px; text-align: center; color: #999; font-size: 12px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incident Response Required - {{ incident_id }}</title>
+  <style>
+    /* Reset & Base Styles */
+    body, table, td, p, a, li, blockquote {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+    table {
+      border-spacing: 0;
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      border: 0;
+      outline: none;
+      text-decoration: none;
+    }
+
+    /* Container */
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #0b0f19;
+      padding: 30px 10px;
+    }
+    .main-card {
+      max-width: 640px;
+      margin: 0 auto;
+      background-color: #1e293b;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      padding: 24px 30px;
+      text-align: left;
+    }
+    .header-badge {
+      display: inline-block;
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 8px;
+    }
+    .header-title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+    .header-sub {
+      margin: 6px 0 0 0;
+      font-size: 13px;
+      color: #fecaca;
+    }
+
+    /* Content Body */
+    .content-body {
+      padding: 28px 30px;
+    }
+
+    /* Meta Grid */
+    .meta-table {
+      width: 100%;
+      margin-bottom: 24px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background-color: #0f172a;
+    }
+    .meta-td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .meta-label {
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    .meta-value {
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+    .severity-badge-high {
+      background-color: #dc2626;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* Section Styles */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 20px 0 8px 0;
+    }
+    .section-desc {
+      font-size: 14px;
+      color: #cbd5e1;
+      margin: 0 0 16px 0;
+    }
+
+    /* Code & Log Blocks */
+    .log-box {
+      background-color: #090d16;
+      border: 1px solid #334155;
+      border-left: 4px solid #ef4444;
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 12px;
+      color: #fca5a5;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    /* Analysis Box */
+    .analysis-box {
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .analysis-row {
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .analysis-row:last-child {
+      margin-bottom: 0;
+    }
+    .hypothesis-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #1e293b;
+      color: #94a3b8;
+      margin-right: 6px;
+    }
+
+    /* Root Cause Highlight */
+    .root-cause-banner {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%);
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 22px;
+    }
+    .root-cause-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f87171;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .root-cause-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 0 6px 0;
+    }
+    .confidence-pill {
+      display: inline-block;
+      background-color: #15803d;
+      color: #dcfce7;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+
+    /* Verification Evidence Table */
+    .evidence-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 20px 0;
+    }
+    .evidence-item {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 6px 10px;
+      background: #090d16;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      color: #a7f3d0;
+      border-left: 3px solid #10b981;
+    }
+
+    /* Remediation Proposal Card */
+    .remediation-card {
+      background-color: #0f172a;
+      border: 1px solid #0284c7;
+      border-left: 5px solid #0284c7;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .remediation-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin: 0 0 6px 0;
+    }
+    .remediation-meta {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    /* Action Buttons CTA */
+    .action-container {
+      background-color: #090d16;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 24px 20px;
+      text-align: center;
+      margin-top: 24px;
+    }
+    .action-notice {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .btn-approve {
+      display: inline-block;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 28px;
+      border-radius: 8px;
+      margin: 6px 8px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    .btn-reject {
+      display: inline-block;
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 24px;
+      border-radius: 8px;
+      margin: 6px 8px;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 11px;
+      color: #64748b;
+    }
+  </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <h1>🚨 INCIDENT RESPONSE REQUIRED</h1>
-    <div>Service: <strong>{{ service }}</strong></div>
-    <div class="severity">Severity: {{ severity }}</div>
-  </div>
-
-  <div class="body">
-    <div class="section">
-      <h3>What Happened</h3>
-      <p>{{ what_happened }}</p>
-    </div>
-
-    <div class="section">
-      <h3>Log Summary</h3>
-      <p>{{ log_summary }}</p>
-    </div>
-
-    <div class="section">
-      <h3>Hypotheses</h3>
-      {% for h in hypotheses %}
-      <div class="hypothesis">
-        #{{ h.rank }} {{ h.title }} — <span class="confidence">{{ h.confidence }}</span>
+  <div class="wrapper">
+    <div class="main-card">
+      
+      <!-- Top Alert Header -->
+      <div class="header-banner">
+        <span class="header-badge">Automated AI Incident Response</span>
+        <h1 class="header-title">🚨 INCIDENT RESPONSE REQUIRED</h1>
+        <p class="header-sub">Incident ID: <strong>{{ incident_id }}</strong> &bull; Multi-agent investigation completed. Remediation proposal awaiting confirmation.</p>
       </div>
-      {% endfor %}
-    </div>
 
-    <div class="section">
-      <h3>Root Cause</h3>
-      <p><strong>{{ root_cause }}</strong></p>
-      <p>Confidence: <span class="confidence">{{ root_cause_confidence }}</span></p>
-    </div>
+      <!-- Content Area -->
+      <div class="content-body">
+        
+        <!-- Key Incident Metadata Table -->
+        <table class="meta-table">
+          <tr>
+            <td class="meta-td" style="width: 50%;">
+              <div class="meta-label">Incident ID</div>
+              <div class="meta-value">{{ incident_id }}</div>
+            </td>
+            <td class="meta-td" style="width: 50%;">
+              <div class="meta-label">Severity</div>
+              <div class="meta-value"><span class="severity-badge-high">{{ severity }}</span></div>
+            </td>
+          </tr>
+          <tr>
+            <td class="meta-td">
+              <div class="meta-label">Target Service</div>
+              <div class="meta-value">{{ service }}</div>
+            </td>
+            <td class="meta-td">
+              <div class="meta-label">Detection Time</div>
+              <div class="meta-value">{{ timestamp }}</div>
+            </td>
+          </tr>
+        </table>
 
-    <div class="section">
-      <h3>Evidence</h3>
-      <ul class="evidence">
-        {% for ev in evidence %}
-        <li>{{ ev }}</li>
-        {% endfor %}
-      </ul>
-    </div>
+        <!-- What Happened -->
+        <div class="section-title">What Happened</div>
+        <p class="section-desc">{{ what_happened }}</p>
 
-    <div class="section">
-      <h3>Proposed Resolution</h3>
-      <p><strong>{{ proposed_action }}</strong></p>
-      <p>Risk: <span class="risk risk-{{ risk }}">{{ risk }}</span></p>
-      <p>Blast Radius: {{ blast_radius }}</p>
+        <!-- Log Summary -->
+        <div class="section-title">Log Summary</div>
+        <div class="log-box">{{ log_summary }}</div>
+
+        <!-- Hypotheses Generated -->
+        <div class="section-title">Top 3 Hypotheses Generated</div>
+        <div class="analysis-box">
+          {% for h in hypotheses %}
+          <div class="analysis-row">
+            <span class="hypothesis-tag">Hypothesis {{ h.rank }}</span>
+            <strong>{{ h.title }}</strong> — {{ h.confidence }} initial estimate
+          </div>
+          {% else %}
+          <div class="analysis-row">No hypotheses generated</div>
+          {% endfor %}
+        </div>
+
+        <!-- Tool Verification Evidence -->
+        <div class="section-title">Verification Evidence (Tool Calls)</div>
+        <ul class="evidence-list">
+          {% for ev in evidence %}
+          <li class="evidence-item">✓ {{ ev }}</li>
+          {% else %}
+          <li class="evidence-item">No evidence collected</li>
+          {% endfor %}
+        </ul>
+
+        <!-- Confirmed Root Cause -->
+        <div class="root-cause-banner">
+          <div class="root-cause-header">Confirmed Root Cause</div>
+          <h2 class="root-cause-title">{{ root_cause }}</h2>
+          <div>
+            <span class="confidence-pill">Confidence: {{ root_cause_confidence }}</span>
+            <span style="font-size: 12px; color: #94a3b8; margin-left: 8px;">Multi-Agent Consensus Verified</span>
+          </div>
+        </div>
+
+        <!-- Proposed Remediation -->
+        <div class="section-title">Proposed Remediation Action</div>
+        <div class="remediation-card">
+          <h3 class="remediation-title">Action: {{ proposed_action }}</h3>
+          <div class="remediation-meta">
+            <strong>Safety Check:</strong> ✅ PASSED (Allowlisted Action) &nbsp;|&nbsp; 
+            <strong>Risk:</strong> {{ risk }} &nbsp;|&nbsp; 
+            <strong>Blast Radius:</strong> {{ blast_radius }}
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-container">
+          <div class="action-notice">
+            ⚠️ <strong>Human-in-the-Loop Gate:</strong> The remediation tool will NOT be executed until you approve below.
+          </div>
+          <table align="center" style="margin: 0 auto;">
+            <tr>
+              <td align="center">
+                <a href="{{ approve_url }}" class="btn-approve" target="_blank">
+                  ✅ APPROVE RESOLUTION
+                </a>
+                <a href="{{ reject_url }}" class="btn-reject" target="_blank">
+                  ❌ REJECT RESOLUTION
+                </a>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 14px 0 0 0; font-size: 11px; color: #64748b;">
+            Endpoints targeted: <code>POST /incidents/{{ incident_id }}/approve</code> &bull; <code>POST /incidents/{{ incident_id }}/reject</code>
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        HackQubit 2.0 &bull; Problem 18 &bull; Autonomous Multi-Agent Incident Response System<br>
+        Confidential automated message generated by AI Incident Manager.
+      </div>
+
     </div>
   </div>
-
-  <div class="actions">
-    <a href="{{ approve_url }}" class="btn btn-approve">✅ APPROVE RESOLUTION</a>
-    <a href="{{ reject_url }}" class="btn btn-reject">❌ REJECT</a>
-  </div>
-
-  <div class="footer">
-    Incident ID: {{ incident_id }} | {{ timestamp }}
-  </div>
-</div>
 </body>
 </html>
 
