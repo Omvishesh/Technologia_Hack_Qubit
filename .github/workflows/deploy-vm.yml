@@ -73,3 +73,4 @@ jobs:
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             echo "Deployment completed successfully on $(hostname)!"
           EOF
+
