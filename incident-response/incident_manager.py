@@ -316,32 +316,43 @@ async def approve_incident(incident_id: str, approved_by: str = "devops") -> Inc
     tool_name = incident.remediation.tool_name if incident.remediation else "restart_student_api"
     add_event(incident, "resolution", f"Executing remediation tool: {tool_name}")
 
-    # Capture pre-remediation metrics for comparison
-    pre_metrics_raw = await collect_metrics()
-    tool_kwargs = {}
-    if tool_name == "scale_student_api":
-        # Scale up pool to 10 connections to accommodate surge
-        tool_kwargs["pool_size"] = 10
+    try:
+        # Capture pre-remediation metrics for comparison
+        pre_metrics_raw = await collect_metrics()
+        pre_metrics = pre_metrics_raw.get("metrics", {}) if pre_metrics_raw.get("success") else None
 
-    resolution_result = await call_remediation_tool(tool_name, **tool_kwargs)
-    add_event(
-        incident, "resolution",
-        f"Tool '{tool_name}' executed: success={resolution_result.success}",
-        {"result": resolution_result.model_dump()},
-    )
+        tool_kwargs = {}
+        if tool_name == "scale_student_api":
+            # Scale up pool to 10 connections to accommodate surge
+            tool_kwargs["pool_size"] = 10
 
-    if not resolution_result.success:
+        resolution_result = await call_remediation_tool(tool_name, **tool_kwargs)
+        add_event(
+            incident, "resolution",
+            f"Tool '{tool_name}' executed: success={resolution_result.success}",
+            {"result": resolution_result.model_dump()},
+        )
+
+        if not resolution_result.success:
+            incident.status = IncidentStatus.RECOVERY_FAILED
+            add_event(incident, "resolution", f"Remediation failed: {resolution_result.error}")
+            store_incident(incident)
+            return incident
+
+        # Verify recovery
+        add_event(incident, "recovery", "Verifying service recovery...")
+        recovery_result = await verify_recovery(
+            wait_seconds=incident.remediation.estimated_recovery_seconds if incident.remediation else 10,
+            pre_metrics=pre_metrics,
+        )
+    except Exception as exc:
+        # Never leave the incident stuck in RESOLVING: that counts as "open" and
+        # would stop the detectors from raising the next outage.
+        logger.error("Post-approval pipeline failed for %s: %s", incident_id, exc, exc_info=True)
         incident.status = IncidentStatus.RECOVERY_FAILED
-        add_event(incident, "resolution", f"Remediation failed: {resolution_result.error}")
+        add_event(incident, "error", f"Remediation/recovery step failed: {exc}")
         store_incident(incident)
         return incident
-
-    # Verify recovery
-    add_event(incident, "recovery", "Verifying service recovery...")
-    recovery_result = await verify_recovery(
-        wait_seconds=incident.remediation.estimated_recovery_seconds if incident.remediation else 10,
-        pre_metrics=pre_metrics,
-    )
     incident.recovery = recovery_result
 
     if recovery_result.recovered:
