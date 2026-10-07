@@ -96,11 +96,11 @@ async def verify_recovery(
 
     if error_rate_before is not None and error_rate_after is not None:
         details_parts.append(
-            f"Error rate: {error_rate_before:.1%} → {error_rate_after:.1%}"
+            f"Error rate: {error_rate_before:.1%} -> {error_rate_after:.1%}"
         )
     if latency_before is not None and latency_after is not None:
         details_parts.append(
-            f"Latency: {latency_before:.0f}ms → {latency_after:.0f}ms"
+            f"Latency: {latency_before:.0f}ms -> {latency_after:.0f}ms"
         )
 
     result = RecoveryResult(

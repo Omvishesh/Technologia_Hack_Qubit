@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+  .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .header { background: #dc3545; color: white; padding: 20px 24px; }
+  .header h1 { margin: 0; font-size: 20px; }
+  .header .severity { display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-top: 8px; }
+  .body { padding: 24px; }
+  .section { margin-bottom: 20px; }
+  .section h3 { color: #333; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .section p, .section li { color: #555; font-size: 14px; line-height: 1.6; }
+  .evidence { list-style: none; padding: 0; }
+  .evidence li { padding: 4px 0; }
+  .evidence li::before { content: "✓ "; color: #28a745; font-weight: bold; }
+  .hypothesis { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 13px; }
+  .confidence { color: #007bff; font-weight: bold; }
+  .risk { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+  .risk-LOW { background: #d4edda; color: #155724; }
+  .risk-MEDIUM { background: #fff3cd; color: #856404; }
+  .risk-HIGH { background: #f8d7da; color: #721c24; }
+  .actions { text-align: center; padding: 20px 24px; background: #f8f9fa; }
+  .btn { display: inline-block; padding: 12px 32px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; margin: 0 8px; }
+  .btn-approve { background: #28a745; color: white; }
+  .btn-reject { background: #6c757d; color: white; }
+  .footer { padding: 16px 24px; text-align: center; color: #999; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🚨 INCIDENT RESPONSE REQUIRED</h1>
+    <div>Service: <strong>student-api</strong></div>
+    <div class="severity">Severity: HIGH</div>
+  </div>
+
+  <div class="body">
+    <div class="section">
+      <h3>What Happened</h3>
+      <p>Pool lease timeout: 10/10 active connections</p>
+    </div>
+
+    <div class="section">
+      <h3>Log Summary</h3>
+      <p>The Student Query API is experiencing a database connection pool exhaustion incident, with all 10 available connections saturated. This has resulted in a high error rate (85%) and significant latency spikes as requests timeout waiting for a connection lease.</p>
+    </div>
+
+    <div class="section">
+      <h3>Hypotheses</h3>
+      
+      <div class="hypothesis">
+        #1 Database Connection Pool Exhaustion — <span class="confidence">85%</span>
+      </div>
+      
+      <div class="hypothesis">
+        #2 Database Query Timeout Causing Connection Leaks — <span class="confidence">10%</span>
+      </div>
+      
+      <div class="hypothesis">
+        #3 Backend Overload Leading to Connection Saturation — <span class="confidence">5%</span>
+      </div>
+      
+    </div>
+
+    <div class="section">
+      <h3>Root Cause</h3>
+      <p><strong>Database Connection Pool Exhaustion</strong></p>
+      <p>Confidence: <span class="confidence">98%</span></p>
+    </div>
+
+    <div class="section">
+      <h3>Evidence</h3>
+      <ul class="evidence">
+        
+        <li>check_db_connections reported active_connections: 10 and max_pool_size: 10, confirming the pool is fully saturated.</li>
+        
+        <li>check_db_connections reported pool_exhausted: true and waiting_requests: 9, indicating new requests are timing out while waiting for a lease.</li>
+        
+        <li>check_db_health reported db_reachable: true and ping_latency_ms: 4.2, but can_query: false with error 'PoolTimeout', confirming the database is healthy but the application cannot acquire a connection.</li>
+        
+      </ul>
+    </div>
+
+    <div class="section">
+      <h3>Proposed Resolution</h3>
+      <p><strong>Clear and recycle the database connection pool to release stale/leaked connections</strong></p>
+      <p>Risk: <span class="risk risk-LOW">LOW</span></p>
+      <p>Blast Radius: Student Query API only — brief reconnection delay</p>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a href="http://localhost:8001/incidents/INC-F955E48B/approve" class="btn btn-approve">✅ APPROVE RESOLUTION</a>
+    <a href="http://localhost:8001/incidents/INC-F955E48B/reject" class="btn btn-reject">❌ REJECT</a>
+  </div>
+
+  <div class="footer">
+    Incident ID: INC-F955E48B | 2026-10-07T10:16:39.944097+00:00
+  </div>
+</div>
+</body>
+</html>

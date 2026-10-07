@@ -37,10 +37,15 @@ class Settings(BaseSettings):
     incident_service_port: int = Field(8001, alias="INCIDENT_SERVICE_PORT")
 
     # ── LLM ──────────────────────────────────────────────────
-    llm_provider: str = Field("gemini", alias="LLM_PROVIDER")
+    llm_provider: str = Field("groq", alias="LLM_PROVIDER")
+    groq_api_key: str = Field("", alias="GROQ_API_KEY")
+    groq_model: str = Field("llama-3.3-70b-versatile", alias="GROQ_MODEL")
+    nvidia_api_key: str = Field("", alias="NVIDIA_API_KEY")
+    nvidia_model: str = Field("meta/llama-3.1-70b-instruct", alias="NVIDIA_MODEL")
+    nvidia_base_url: str = Field("https://integrate.api.nvidia.com/v1", alias="NVIDIA_BASE_URL")
     gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
-    llm_model: str = Field("gemini-2.0-flash", alias="LLM_MODEL")
+    llm_model: str = Field("llama-3.3-70b-versatile", alias="LLM_MODEL")
 
     # ── Incident Detection ───────────────────────────────────
     detector_interval_seconds: int = Field(5, alias="DETECTOR_INTERVAL_SECONDS")
