@@ -86,3 +86,4 @@ def reject_incident_action(incident_id: str, req: RejectionRequest = RejectionRe
         "action_executed": None,
         "message": "Automated resolution rejected. No changes were applied."
     }
+

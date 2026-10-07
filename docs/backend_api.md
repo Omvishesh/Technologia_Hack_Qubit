@@ -234,3 +234,4 @@ Every request writes a single JSON line to `backend/logs/app.log`:
   "latency_ms": 3000.75
 }
 ```
+

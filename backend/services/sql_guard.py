@@ -58,3 +58,4 @@ def sanitize_and_validate_sql(raw_sql: str) -> str:
 
     # Return valid single query (without trailing semicolon to be safe with subqueries)
     return statements[0]
+

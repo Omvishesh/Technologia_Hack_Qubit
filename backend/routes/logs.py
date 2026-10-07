@@ -20,3 +20,4 @@ def get_logs(
         "status_filter": status,
         "logs": entries
     }
+

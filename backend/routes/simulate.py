@@ -78,3 +78,4 @@ def reset_simulations():
         "message": "All injected failures cleared and connection pool recycled.",
         "pool_status": db_manager.get_pool_status()
     }
+

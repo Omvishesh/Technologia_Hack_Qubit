@@ -65,3 +65,4 @@ INSERT INTO students (student_id, name, department, year, cgpa, email, skills, p
 ('STU059', 'Chirag Sethi', 'Information Technology', 3, 8.05, 'chirag.sethi@campus.edu', 'Database Administration, PostgreSQL, Performance Tuning', 'Eligible'),
 ('STU060', 'Zoya Farooqui', 'Computer Science', 4, 9.65, 'zoya.f@campus.edu', 'Distributed Databases, Raft, Go, AI Infrastructure', 'Placed')
 ON CONFLICT (student_id) DO NOTHING;
+

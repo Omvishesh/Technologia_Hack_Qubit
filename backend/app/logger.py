@@ -82,3 +82,4 @@ class StructuredJsonLogger:
         return lines[-limit:]
 
 logger = StructuredJsonLogger(log_file_path)
+

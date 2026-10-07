@@ -18,3 +18,4 @@ CREATE TABLE IF NOT EXISTS students (
 CREATE INDEX IF NOT EXISTS idx_students_cgpa ON students(cgpa);
 CREATE INDEX IF NOT EXISTS idx_students_dept ON students(department);
 CREATE INDEX IF NOT EXISTS idx_students_placement ON students(placement_status);
+

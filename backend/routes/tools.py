@@ -77,3 +77,4 @@ def scale_student_api(req: ScaleRequest):
         "new_pool_size": req.pool_size,
         "pool_status": db_manager.get_pool_status()
     }
+
