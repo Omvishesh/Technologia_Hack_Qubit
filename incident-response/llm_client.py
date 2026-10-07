@@ -1,8 +1,8 @@
 """
 LLM Client — Shared interface for calling language models with automatic fallback.
 
-Primary: Groq (llama-3.3-70b-versatile) — ultra fast inference
-Fallback: NVIDIA NIM (meta/llama-3.1-70b-instruct) — enterprise cloud inference
+Primary: Groq (llama-3.3-70b-versatile) — ultra fast inference (keys #1 -> #2 -> #3)
+Fallback: NVIDIA NIM (meta/llama-3.1-70b-instruct) — enterprise cloud inference (keys #1 -> #2 -> #3)
 Additional options: Gemini, standard OpenAI
 """
 
@@ -27,10 +27,11 @@ async def _call_groq(
     user_prompt: str,
     temperature: float = 0.2,
     max_tokens: int = 2048,
+    api_key: str | None = None,
 ) -> str:
     """Call Groq Cloud API using OpenAI-compatible chat completions endpoint."""
     settings = get_settings()
-    api_key = settings.groq_api_key
+    api_key = api_key or settings.groq_api_key
     if not api_key:
         raise ValueError("GROQ_API_KEY is not set.")
 
@@ -74,10 +75,11 @@ async def _call_nvidia(
     user_prompt: str,
     temperature: float = 0.2,
     max_tokens: int = 2048,
+    api_key: str | None = None,
 ) -> str:
     """Call NVIDIA NIM API using OpenAI-compatible chat completions endpoint."""
     settings = get_settings()
-    api_key = settings.nvidia_api_key
+    api_key = api_key or settings.nvidia_api_key
     if not api_key:
         raise ValueError("NVIDIA_API_KEY is not set.")
 
@@ -151,44 +153,40 @@ async def call_llm(
     max_tokens: int = 2048,
 ) -> str:
     """
-    Call LLM with primary (Groq) and fallback (NVIDIA) strategy.
+    Call LLM with key-level failover.
+
+    Default / groq:  Groq #1 -> #2 -> #3 -> NVIDIA #1 -> #2 -> #3
+    nvidia:          NVIDIA #1 -> #2 -> #3 -> Groq #1 -> #2 -> #3
+    gemini:          Gemini, then the default chain
+    Keys that are not set are skipped.
     """
     settings = get_settings()
     provider = settings.llm_provider.lower()
 
-    # If provider is explicitly groq, try Groq then fallback to NVIDIA
-    if provider == "groq":
-        try:
-            logger.info("Calling Primary LLM: Groq (%s)", settings.groq_model)
-            return await _call_groq(system_prompt, user_prompt, temperature, max_tokens)
-        except Exception as exc:
-            logger.warning("Primary LLM (Groq) failed: %s. Switching to Secondary (NVIDIA)...", exc)
-            return await _call_nvidia(system_prompt, user_prompt, temperature, max_tokens)
+    groq = [(f"Groq #{i}", settings.groq_model, _call_groq, key)
+            for i, key in enumerate((settings.groq_api_key, settings.groq_api_key_2, settings.groq_api_key_3), start=1)]
+    nvidia = [(f"NVIDIA #{i}", settings.nvidia_model, _call_nvidia, key)
+              for i, key in enumerate((settings.nvidia_api_key, settings.nvidia_api_key_2, settings.nvidia_api_key_3), start=1)]
+    chain = [c for c in (nvidia + groq if provider == "nvidia" else groq + nvidia) if c[3]]
 
-    # If provider is explicitly nvidia
-    elif provider == "nvidia":
-        try:
-            logger.info("Calling Primary LLM: NVIDIA (%s)", settings.nvidia_model)
-            return await _call_nvidia(system_prompt, user_prompt, temperature, max_tokens)
-        except Exception as exc:
-            logger.warning("Primary LLM (NVIDIA) failed: %s. Switching to Secondary (Groq)...", exc)
-            return await _call_groq(system_prompt, user_prompt, temperature, max_tokens)
-
-    # If gemini is specified
-    elif provider == "gemini":
+    if provider == "gemini":
         try:
             return await _call_gemini(system_prompt, user_prompt, temperature, max_tokens)
         except Exception as exc:
-            logger.warning("Gemini failed: %s. Falling back to Groq...", exc)
-            return await _call_groq(system_prompt, user_prompt, temperature, max_tokens)
+            logger.warning("Gemini failed: %s. Falling back to Groq/NVIDIA chain...", exc)
 
-    else:
-        # Default failover: Groq -> NVIDIA
+    last_exc: Exception | None = None
+    for name, model, call, api_key in chain:
         try:
-            return await _call_groq(system_prompt, user_prompt, temperature, max_tokens)
+            logger.info("Calling LLM: %s (%s)", name, model)
+            return await call(system_prompt, user_prompt, temperature, max_tokens, api_key=api_key)
         except Exception as exc:
-            logger.warning("Groq failed: %s. Falling back to NVIDIA...", exc)
-            return await _call_nvidia(system_prompt, user_prompt, temperature, max_tokens)
+            logger.warning("LLM %s failed: %s. Trying next provider...", name, exc)
+            last_exc = exc
+
+    if last_exc is None:
+        raise ValueError("No LLM API keys configured (GROQ_API_KEY / NVIDIA_API_KEY).")
+    raise RuntimeError(f"All LLM providers failed; last error: {last_exc}") from last_exc
 
 
 async def call_llm_json(

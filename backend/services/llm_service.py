@@ -1,13 +1,13 @@
 """
 Vectorless Structured RAG (Text-to-SQL + Grounded Response Generation).
 Supports:
-1. Primary Provider: Groq (ultra-fast inference)
-2. Alternate Fallback Provider: NVIDIA NIM (high quality model fallback)
+1. Primary Provider: Groq (ultra-fast inference) — keys #1 -> #2 -> #3
+2. Alternate Fallback Provider: NVIDIA NIM (high quality model fallback) — keys #1 -> #2 -> #3
 3. Safety Net Fallback: Offline deterministic heuristic + template synthesizer
 """
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from backend.app.config import settings
 
@@ -42,13 +42,21 @@ Highlight the students' names, CGPAs, departments, and matching skills.
 
 class LLMService:
     def __init__(self):
-        # Groq (Primary)
-        self.groq_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
+        # Groq (Primary) — keys #1 -> #2 -> #3
+        self.groq_keys = [
+            settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", ""),
+            settings.GROQ_API_KEY_2,
+            settings.GROQ_API_KEY_3,
+        ]
         self.groq_model = settings.GROQ_MODEL
         self.groq_base_url = settings.GROQ_BASE_URL.rstrip("/")
 
-        # NVIDIA NIM (Alternate Fallback)
-        self.nvidia_key = settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", "")
+        # NVIDIA NIM (Alternate Fallback) — keys #1 -> #2 -> #3
+        self.nvidia_keys = [
+            settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", ""),
+            settings.NVIDIA_API_KEY_2,
+            settings.NVIDIA_API_KEY_3,
+        ]
         self.nvidia_model = settings.NVIDIA_MODEL
         self.nvidia_base_url = settings.NVIDIA_BASE_URL.rstrip("/")
 
@@ -56,82 +64,62 @@ class LLMService:
         self.primary_provider = settings.PRIMARY_LLM_PROVIDER
         self.fallback_provider = settings.FALLBACK_LLM_PROVIDER
 
+    def _provider_chain(self) -> List[Tuple[str, str, str, str]]:
+        """
+        Failover order as (name, base_url, api_key, model):
+        Groq #1 -> #2 -> #3 -> NVIDIA NIM #1 -> #2 -> #3. Unset keys are skipped.
+        """
+        chain = []
+        if self.primary_provider == "groq":
+            chain += [(f"Groq #{i}", self.groq_base_url, key, self.groq_model)
+                      for i, key in enumerate(self.groq_keys, start=1)]
+        chain += [(f"NVIDIA NIM #{i}", self.nvidia_base_url, key, self.nvidia_model)
+                  for i, key in enumerate(self.nvidia_keys, start=1)]
+        return [p for p in chain if p[2]]
+
     async def generate_sql(self, user_query: str) -> str:
         """
-        Translates natural language to SQL with Primary -> Fallback -> Heuristic redundancy.
+        Translates natural language to SQL with Groq -> NVIDIA key failover -> Heuristic redundancy.
         """
-        # 1. Attempt Primary Provider (Groq)
-        if self.groq_key and self.primary_provider == "groq":
+        for name, base_url, api_key, model in self._provider_chain():
             try:
                 sql = await self._call_openai_compatible_sql(
-                    base_url=self.groq_base_url,
-                    api_key=self.groq_key,
-                    model=self.groq_model,
+                    base_url=base_url,
+                    api_key=api_key,
+                    model=model,
                     user_query=user_query,
-                    provider_name="Groq"
+                    provider_name=name
                 )
-                print(f"[LLM INFO] SQL generated successfully via Primary (Groq / {self.groq_model})")
+                print(f"[LLM INFO] SQL generated successfully via {name} ({model})")
                 return sql
             except Exception as e:
-                print(f"[LLM FALLBACK ALERT] Primary Groq call failed: {e}. Switching to alternate fallback (NVIDIA NIM)...")
+                print(f"[LLM FALLBACK ALERT] {name} SQL call failed: {e}. Trying next provider...")
 
-        # 2. Attempt Alternate Fallback Provider (NVIDIA NIM)
-        if self.nvidia_key:
-            try:
-                sql = await self._call_openai_compatible_sql(
-                    base_url=self.nvidia_base_url,
-                    api_key=self.nvidia_key,
-                    model=self.nvidia_model,
-                    user_query=user_query,
-                    provider_name="NVIDIA NIM"
-                )
-                print(f"[LLM INFO] SQL generated successfully via Alternate Fallback (NVIDIA NIM / {self.nvidia_model})")
-                return sql
-            except Exception as e:
-                print(f"[LLM FALLBACK ALERT] Alternate NVIDIA call failed: {e}. Switching to offline heuristic...")
-
-        # 3. Final Safety Net: Offline heuristic generator
+        # Final Safety Net: Offline heuristic generator
         print("[LLM INFO] Using offline heuristic SQL generator safety net.")
         return self._heuristic_sql_generator(user_query)
 
     async def synthesize_response(self, user_query: str, records: List[Dict[str, Any]]) -> str:
         """
-        Synthesizes grounded conversational response with Primary -> Fallback -> Template redundancy.
+        Synthesizes grounded conversational response with Groq -> NVIDIA key failover -> Template redundancy.
         """
         if not records:
             return "No matching student records found for your query."
 
-        # 1. Attempt Primary Provider (Groq)
-        if self.groq_key and self.primary_provider == "groq":
+        for name, base_url, api_key, model in self._provider_chain():
             try:
-                resp = await self._call_openai_compatible_synthesis(
-                    base_url=self.groq_base_url,
-                    api_key=self.groq_key,
-                    model=self.groq_model,
+                return await self._call_openai_compatible_synthesis(
+                    base_url=base_url,
+                    api_key=api_key,
+                    model=model,
                     user_query=user_query,
                     records=records,
-                    provider_name="Groq"
+                    provider_name=name
                 )
-                return resp
             except Exception as e:
-                print(f"[LLM FALLBACK ALERT] Primary Groq synthesis failed: {e}. Switching to alternate fallback (NVIDIA NIM)...")
+                print(f"[LLM FALLBACK ALERT] {name} synthesis failed: {e}. Trying next provider...")
 
-        # 2. Attempt Alternate Fallback Provider (NVIDIA NIM)
-        if self.nvidia_key:
-            try:
-                resp = await self._call_openai_compatible_synthesis(
-                    base_url=self.nvidia_base_url,
-                    api_key=self.nvidia_key,
-                    model=self.nvidia_model,
-                    user_query=user_query,
-                    records=records,
-                    provider_name="NVIDIA NIM"
-                )
-                return resp
-            except Exception as e:
-                print(f"[LLM FALLBACK ALERT] Alternate NVIDIA synthesis failed: {e}. Switching to template synthesizer...")
-
-        # 3. Final Safety Net: Grounded template synthesis
+        # Final Safety Net: Grounded template synthesis
         return self._template_synthesis(user_query, records)
 
     async def _call_openai_compatible_sql(

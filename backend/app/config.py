@@ -37,8 +37,14 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "qwen/qwen3.8-27b"
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
+    # Failover keys — order: Groq #1 -> #2 -> #3 -> NVIDIA #1 -> #2 -> #3
+    GROQ_API_KEY_2: str = ""
+    GROQ_API_KEY_3: str = ""
+
     # NVIDIA NIM (Fallback)
     NVIDIA_API_KEY: str = ""
+    NVIDIA_API_KEY_2: str = ""
+    NVIDIA_API_KEY_3: str = ""
     NVIDIA_MODEL: str = "meta/llama-3.2-11b-vision-instruct"
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
 

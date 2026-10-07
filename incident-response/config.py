@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     nvidia_api_key: str = Field("", alias="NVIDIA_API_KEY")
     nvidia_model: str = Field("meta/llama-3.1-70b-instruct", alias="NVIDIA_MODEL")
     nvidia_base_url: str = Field("https://integrate.api.nvidia.com/v1", alias="NVIDIA_BASE_URL")
+    # Failover keys — order: Groq #1 -> #2 -> #3 -> NVIDIA #1 -> #2 -> #3
+    groq_api_key_2: str = Field("", alias="GROQ_API_KEY_2")
+    groq_api_key_3: str = Field("", alias="GROQ_API_KEY_3")
+    nvidia_api_key_2: str = Field("", alias="NVIDIA_API_KEY_2")
+    nvidia_api_key_3: str = Field("", alias="NVIDIA_API_KEY_3")
     gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
     llm_model: str = Field("llama-3.3-70b-versatile", alias="LLM_MODEL")
