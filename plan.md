@@ -132,38 +132,26 @@ The chatbot sends the request to a backend API, which queries an SQL database.
 
 
 
-\### Normal Architecture
-
-
+\### Normal Architecture: Vectorless Structured RAG (PostgreSQL Text-to-SQL)
 
 ```text
-
 User
-
-&#x20;↓
-
-Chatbot Frontend
-
-&#x20;↓
-
-Backend API
-
-&#x20;↓
-
-LLM / Query Processing
-
-&#x20;↓
-
-SQL Database
-
-&#x20;↓
-
-Response
-
-&#x20;↓
-
-Chatbot
-
+ ↓
+Chatbot Frontend (UI)
+ ↓
+Backend API (POST /chat)
+ ↓
+LLM Call 1: Text-to-SQL (PostgreSQL schema in system prompt)
+ ↓
+PostgreSQL Table (`students`) execution
+ ↓
+Retrieved Rows / Data Context
+ ↓
+LLM Call 2: Response Generation (Grounded synthesis)
+ ↓
+Chatbot Frontend (Response + SQL Transparency Badge)
+ ↓
+User
 ```
 
 
@@ -204,7 +192,29 @@ DO NOT attack public websites or third-party systems. All load/failure testing m
 
 \# 3. Team Responsibilities
 
+\## Team Workflow & Collaboration Guidelines
 
+> [!IMPORTANT]
+> \### 🌿 Git Branching Strategy & Checklist Tracking
+> 1. \*\*Separate Dedicated Branches for Each Member:\*\*
+>    - Every team member must work on their own separate Git branch dedicated to their assigned domain. \*\*Never commit directly to `main`\*\*.
+>    - Recommended branch naming:
+>      - \*\*Shradha:\*\* `shradha/infra-setup` or `feat/infra-vm`
+>      - \*\*Dumani:\*\* `dumani/frontend-ui` or `feat/chatbot-ui`
+>      - \*\*Saket:\*\* `saket/backend-api` or `feat/student-api-db`
+>      - \*\*Om:\*\* `om/incident-pipeline` or `feat/multi-agent-response`
+> 2. \*\*Keep the Checklist Updated Continuously:\*\*
+>    - All tasks are tracked in [CHECKLIST.md](CHECKLIST.md).
+>    - Once any task or subtask is completed by a member, update its checkbox (`- [ ]` → `- [x]`) and increment the counter in the \*\*Team Progress Summary\*\* table in [CHECKLIST.md](CHECKLIST.md).
+> 3. \*\*Adhere Strictly to Assigned Work:\*\*
+>    - Each member must focus on their designated domain and assigned tasks.
+>    - Do not modify files or logic owned by another teammate without prior agreement.
+>    - Always honor the agreed integration interfaces documented in [Section 13](#13-team-integration-points).
+> 4. \*\*Integration via Pull Requests:\*\*
+>    - Submit a PR to `main` once your assigned milestone components are verified.
+>    - Rebase / pull `main` regularly into your feature branch to prevent merge conflicts.
+
+\---
 
 \## Person 1 — Shradha
 
@@ -518,179 +528,347 @@ The Reject button must also call a backend endpoint and mark the incident as rej
 
 \# 5. Person 3 — Saket
 
-\## Chatbot Architecture + Backend
-
-
+\## Chatbot Architecture + Backend: Vectorless Structured RAG (Text-to-SQL)
 
 \### Primary responsibility
 
+Build the student data chatbot application and its backend architecture using a **Vectorless RAG (Text-to-SQL) pipeline over PostgreSQL (`pg`)**.
 
+---
 
-Build the actual student chatbot application and its backend architecture.
+\### A. Architectural Concept: RAG Without Vector DB (Structured Data RAG)
 
+Traditional RAG relies on vector databases (embeddings + cosine similarity) to retrieve unstructured text chunks. However, for structured student databases:
+- **Numerical comparisons** (e.g., `cgpa > 8.0`), exact aggregations (`COUNT`, `AVG`, `MAX`), and boolean constraints cannot be reliably solved by cosine similarity in vector spaces.
+- **PostgreSQL (`pg`) Table** acts as the single deterministic source of truth for structured tabular records.
+- **LLM-driven Text-to-SQL** replaces vector embedding retrieval:
+  1. The LLM converts natural language into a deterministic SQL query using the PostgreSQL table schema provided in the system prompt.
+  2. The SQL query runs directly against the PostgreSQL database to retrieve the ground-truth rows.
+  3. A second LLM pass synthesizes those retrieved records into a user-friendly natural language response.
 
+```mermaid
+flowchart TD
+    subgraph Client ["Frontend Layer (Dumani)"]
+        U["👤 User"] -->|"1. Natural Language Query\n('which student has cgps greater than 8, and have skills in ai.')"| UI["Chatbot Frontend"]
+        UI -->|"POST /chat { query }"| API["Student Backend API\n(FastAPI / asyncpg)"]
+        RES_DISP["5. Display Response to User\n(Markdown + SQL Data Badge)"] --> U
+    end
 
-\### A. Student Database
+    subgraph Backend ["Backend API Service (Saket)"]
+        subgraph Stage1 ["Stage 1: Query Translation"]
+            API -->|"Prompt: User Query + PG Table Schema"| LLM1["🧠 LLM (Call 1: Text-to-SQL)"]
+            LLM1 -->|"Returns: Valid PostgreSQL SELECT query"| SQL_GUARD["SQL Safety & AST Validator\n(SELECT only, No Mutation)"]
+        end
+        
+        subgraph Stage2 ["Stage 2: Deterministic Data Retrieval"]
+            SQL_GUARD -->|"Execute Safe SQL"| PG[("🐘 PostgreSQL Database\n(Table: students)")]
+            PG -->|"Return Ground-Truth Rows (JSON / Tuples)"| DATA_CTX["Retrieved Records Context"]
+        end
+        
+        subgraph Stage3 ["Stage 3: Response Synthesis"]
+            DATA_CTX -->|"Prompt: Original Query + Retrieved Rows"| LLM2["🧠 LLM (Call 2: Response Generator)"]
+            LLM2 -->|"Synthesized Natural Language Answer"| RESP_FMT["Format JSON Payload\n{ response, data, sql, latency }"]
+        end
+        
+        RESP_FMT -->|"HTTP 200 OK"| UI
+    end
 
-
-
-Create an SQL database containing fake/demo student data.
-
-
-
-Possible fields:
-
-
-
-```text
-
-student\_id
-
-name
-
-department
-
-year
-
-cgpa
-
-email
-
-skills
-
-placement\_status
-
+    subgraph Observability ["Observability & Incident Hooks"]
+        API -.->|"Structured JSON Logs"| LOGS["backend/logs/app.log"]
+        API -.->|"Active Pool Conns / Latency"| METRICS["GET /metrics"]
+        SIM["Failure Injector\n(POST /simulate/*)"] -.->|"Connection Exhaustion / Timeout"| PG
+    end
 ```
 
+---
 
+\### B. End-to-End 5-Step Pipeline Walkthrough
 
-Use synthetic/demo data only.
+The chatbot processes every question through 5 distinct phases:
 
+#### 1. User Query Intake
+The user types a natural language query into the frontend:
+> **User Query:** *"which student has cgps greater than 8, and have skills in ai."*
 
-
-\### B. Backend API
-
-
-
-Create APIs for:
-
-
-
-```text
-
-POST /chat
-
-GET  /health
-
-GET  /students
-
-GET  /metrics
-
-```
-
-
-
-The `/chat` endpoint should:
-
-
-
-1\. Receive the user's question.
-
-2\. Send it to the LLM/query-processing layer.
-
-3\. Generate/execute the required SQL query safely.
-
-4\. Query the database.
-
-5\. Return the result to the chatbot.
-
-
-
-\### C. Logging
-
-
-
-Every backend request should produce structured logs.
-
-
-
-Example:
-
-
-
-```json
+Frontend makes an HTTP request:
+```http
+POST /chat HTTP/1.1
+Content-Type: application/json
 
 {
-
-&#x20; "timestamp": "...",
-
-&#x20; "service": "student-api",
-
-&#x20; "request\_id": "...",
-
-&#x20; "endpoint": "/chat",
-
-&#x20; "status": "500",
-
-&#x20; "error": "database connection timeout"
-
+  "query": "which student has cgps greater than 8, and have skills in ai."
 }
-
 ```
 
+#### 2. LLM Call 1 — Text-to-SQL Translation (Schema in System Prompt)
+The backend calls the LLM with a system prompt that includes the exact PostgreSQL schema and rules.
 
+**System Prompt (Text-to-SQL):**
+```text
+You are an expert PostgreSQL database engineer for a university student system.
+Your sole job is to translate the user's natural language question into a single, valid, safe PostgreSQL SELECT query.
 
-Make sure logs are useful for the incident-response agents.
+Database Schema:
+Table: students
+Columns:
+  - student_id: VARCHAR(20) (Primary Key, e.g., 'STU001')
+  - name: VARCHAR(100) (Student full name)
+  - department: VARCHAR(50) (e.g., 'Computer Science', 'Information Technology', 'Electronics & Comm')
+  - year: INTEGER (Current academic year: 1, 2, 3, 4)
+  - cgpa: REAL / NUMERIC (Cumulative GPA, range 0.00 to 10.00)
+  - email: VARCHAR(120) (Student email address)
+  - skills: TEXT (Comma-separated skills, e.g., 'Python, PyTorch, AI, Docker')
+  - placement_status: VARCHAR(20) ('Placed', 'Eligible', 'Not Eligible')
 
+Rules:
+1. Generate ONLY standard PostgreSQL read-only SELECT statements.
+2. NEVER generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or GRANT statements.
+3. For text searches in skills or departments, use case-insensitive matching: `ILIKE '%ai%'`.
+4. Output ONLY the raw SQL query with no markdown backticks, no commentary, and no explanation.
+```
 
+**LLM Call 1 Output (Generated SQL):**
+```sql
+SELECT student_id, name, department, year, cgpa, email, skills, placement_status
+FROM students
+WHERE cgpa > 8.0 AND (skills ILIKE '%ai%' OR skills ILIKE '%artificial intelligence%')
+ORDER BY cgpa DESC;
+```
 
-\### D. Failure Simulation
+#### 3. SQL Query Execution on PostgreSQL (`pg`) Table
+- **Safety Validation:** The backend validates that the query begins with `SELECT` and contains no forbidden tokens or semicolon chaining.
+- **Execution:** The backend checks out a connection from the PostgreSQL connection pool (`asyncpg` / `psycopg2`) and executes the query.
+- **Result Rows:**
+```json
+[
+  {
+    "student_id": "STU001",
+    "name": "Aarav Sharma",
+    "department": "Computer Science",
+    "year": 4,
+    "cgpa": 9.42,
+    "email": "aarav.sharma@campus.edu",
+    "skills": "Python, PyTorch, AI, PostgreSQL",
+    "placement_status": "Placed"
+  },
+  {
+    "student_id": "STU008",
+    "name": "Meera Rao",
+    "department": "Computer Science",
+    "year": 4,
+    "cgpa": 9.78,
+    "email": "meera.rao@campus.edu",
+    "skills": "Machine Learning, AI, Rust, C++",
+    "placement_status": "Placed"
+  },
+  {
+    "student_id": "STU006",
+    "name": "Sneha Nair",
+    "department": "Information Technology",
+    "year": 4,
+    "cgpa": 8.35,
+    "email": "sneha.nair@campus.edu",
+    "skills": "Angular, Python, AI, Django, AWS",
+    "placement_status": "Placed"
+  }
+]
+```
 
+*(Note: If the pool is exhausted by a failure injection scenario, this step throws an error and triggers the incident logging pipeline!)*
 
+#### 4. LLM Call 2 — Response Generation (Grounded Synthesis)
+The backend supplies both the original question and the retrieved database records to the LLM to compose a fluent, grounded answer.
 
-Saket should expose controlled ways to reproduce backend failures.
+**System Prompt (Synthesizer):**
+```text
+You are a helpful student academic advisor assistant.
+Answer the user's question accurately and concisely using ONLY the provided database query results.
+Do not invent or assume information not present in the records.
+If no records matched, inform the user clearly.
+Highlight the students' names, CGPAs, departments, and matching skills.
+```
 
+**User Prompt:**
+```text
+User Question: "which student has cgps greater than 8, and have skills in ai."
 
+Retrieved Database Records:
+[{"student_id": "STU008", "name": "Meera Rao", "department": "Computer Science", "year": 4, "cgpa": 9.78, "skills": "Machine Learning, AI, Rust, C++", "placement_status": "Placed"}, {"student_id": "STU001", "name": "Aarav Sharma", "department": "Computer Science", "year": 4, "cgpa": 9.42, "skills": "Python, PyTorch, AI, PostgreSQL", "placement_status": "Placed"}, {"student_id": "STU006", "name": "Sneha Nair", "department": "Information Technology", "year": 4, "cgpa": 8.35, "skills": "Angular, Python, AI, Django, AWS", "placement_status": "Placed"}]
+```
 
-For example:
+**LLM Call 2 Output:**
+> "Here are the students with a CGPA greater than 8.0 and skills in AI:
+> 
+> 1. **Meera Rao** (Computer Science, Year 4) — **CGPA: 9.78** | Skills: *Machine Learning, AI, Rust, C++* (Status: Placed)
+> 2. **Aarav Sharma** (Computer Science, Year 4) — **CGPA: 9.42** | Skills: *Python, PyTorch, AI, PostgreSQL* (Status: Placed)
+> 3. **Sneha Nair** (Information Technology, Year 4) — **CGPA: 8.35** | Skills: *Angular, Python, AI, Django, AWS* (Status: Placed)"
 
+#### 5. User is Shown the Response
+Backend returns the response along with transparency metadata so the frontend can display both the conversational answer and an optional view of the underlying SQL query:
+```json
+{
+  "query": "which student has cgps greater than 8, and have skills in ai.",
+  "response": "Here are the students with a CGPA greater than 8.0 and skills in AI: ...",
+  "data": [
+    { "student_id": "STU008", "name": "Meera Rao", "department": "Computer Science", "cgpa": 9.78, "skills": "Machine Learning, AI, Rust, C++" },
+    { "student_id": "STU001", "name": "Aarav Sharma", "department": "Computer Science", "cgpa": 9.42, "skills": "Python, PyTorch, AI, PostgreSQL" },
+    { "student_id": "STU006", "name": "Sneha Nair", "department": "Information Technology", "cgpa": 8.35, "skills": "Angular, Python, AI, Django, AWS" }
+  ],
+  "metadata": {
+    "generated_sql": "SELECT student_id, name, department, year, cgpa, email, skills, placement_status FROM students WHERE cgpa > 8.0 AND (skills ILIKE '%ai%' OR skills ILIKE '%artificial intelligence%') ORDER BY cgpa DESC;",
+    "row_count": 3,
+    "execution_time_ms": 142
+  }
+}
+```
 
+---
+
+\### C. PostgreSQL (`pg`) Database Schema & Seed Data
+
+#### Table Definition (`database/schema.sql`)
+```sql
+CREATE TABLE IF NOT EXISTS students (
+    student_id VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    department VARCHAR(50) NOT NULL,
+    year INTEGER NOT NULL,
+    cgpa REAL NOT NULL,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    skills TEXT NOT NULL,
+    placement_status VARCHAR(20) NOT NULL
+);
+
+-- Performance & search index
+CREATE INDEX IF NOT EXISTS idx_students_cgpa ON students(cgpa);
+CREATE INDEX IF NOT EXISTS idx_students_dept ON students(department);
+CREATE INDEX IF NOT EXISTS idx_students_placement ON students(placement_status);
+```
+
+#### Seed Data (`database/seed.sql`)
+Populate with 50–100 realistic records covering:
+- Departments: `CSE`, `AI & DS`, `IT`, `ECE`, `MECH`, `CIVIL`.
+- CGPA ranges: `6.00` to `9.85`.
+- Diverse skill sets: `Python, AI, Machine Learning, Deep Learning, Cloud, DevOps, SQL, Java, React, C++`.
+
+---
+
+\### D. Backend API Specifications
+
+Saket implements the following endpoints in FastAPI / Express:
 
 ```text
-
-POST /simulate/db-timeout
-
-POST /simulate/db-unavailable
-
-POST /simulate/api-delay
-
-POST /simulate/connection-exhaustion
-
+POST /chat                               # User natural language query -> Text-to-SQL RAG -> Response
+GET  /health                             # Liveness & PostgreSQL connection health
+GET  /students                           # Direct inspection of student rows (with limit/offset)
+GET  /metrics                            # Latency, pool utilization, active connections, error count
+GET  /logs                               # Tail / filter structured application logs
 ```
 
+#### Request/Response Contract for `POST /chat`
+- **Request Body:**
+  ```json
+  {
+    "query": "which student has cgps greater than 8, and have skills in ai."
+  }
+  ```
+- **Success Response (200 OK):**
+  ```json
+  {
+    "status": "success",
+    "query": "which student has cgps greater than 8, and have skills in ai.",
+    "response": "Here are the students with a CGPA greater than 8.0 and skills in AI: ...",
+    "data": [...],
+    "metadata": {
+      "generated_sql": "SELECT ... FROM students WHERE cgpa > 8.0 ...",
+      "row_count": 3,
+      "latency_ms": 280
+    }
+  }
+  ```
+- **Failure Response (500 Internal Server Error) during simulated incident:**
+  ```json
+  {
+    "status": "error",
+    "error_code": "DB_CONNECTION_TIMEOUT",
+    "message": "Failed to execute database query: connection pool exhausted (timeout waiting for pool slot after 3000ms)",
+    "request_id": "req-98213f"
+  }
+  ```
 
+---
 
-These endpoints are ONLY for our controlled demo environment.
+\### E. Structured Logging
 
+Every request generates a structured JSON log entry in `backend/logs/app.log`:
 
+```json
+{
+  "timestamp": "2026-10-07T14:15:30.124Z",
+  "service": "student-api",
+  "request_id": "req-98213f",
+  "endpoint": "/chat",
+  "user_query": "which student has cgps greater than 8, and have skills in ai.",
+  "generated_sql": "SELECT * FROM students WHERE cgpa > 8.0 AND skills ILIKE '%ai%'",
+  "db_pool_active": 10,
+  "db_pool_max": 10,
+  "status": 500,
+  "error": "asyncpg.exceptions.PoolTimeoutError: Timeout waiting for connection from pool after 3.0s",
+  "latency_ms": 3005
+}
+```
+
+These logs provide immediate root-cause evidence for Om's Log Analysis and Hypothesis Agents.
+
+---
+
+\### F. Failure Simulation Endpoints (`/simulate/*`)
+
+Endpoints exclusively for controlled demonstration of backend incidents:
+
+```text
+POST /simulate/connection-exhaustion     # Exhausts PostgreSQL pool by leasing all connections and blocking
+POST /simulate/db-timeout                # Introduces pg_sleep() or synthetic delay > query timeout
+POST /simulate/db-unavailable            # Points pool to dead port or stops PostgreSQL service
+POST /simulate/api-delay                 # Injects 5-10s latency before LLM/DB processing
+POST /simulate/invalid-sql               # Simulates LLM returning syntax error / malformed SQL
+```
+
+---
+
+\### G. Verification & Resolution Tool Endpoints (For Om's Incident Agents)
+
+Saket exposes internal diagnostic and remediation endpoints called by Om's agents:
+
+#### Verification Tools (Read-Only)
+- `GET /tools/check-db-connections`:
+  ```json
+  { "active_connections": 10, "max_pool_size": 10, "waiting_requests": 8, "pool_exhausted": true }
+  ```
+- `GET /tools/check-db-health`:
+  ```json
+  { "db_reachable": true, "ping_latency_ms": 4.2, "can_query": false, "error": "PoolTimeout" }
+  ```
+- `GET /tools/check-backend-load`:
+  ```json
+  { "cpu_percent": 18.5, "memory_mb": 142.0, "active_http_requests": 12 }
+  ```
+
+#### Resolution Tools (Allowlisted Remediation)
+- `POST /tools/clear-connection-pool`: Drops all held connections, recycles the PostgreSQL connection pool, and restores availability.
+- `POST /tools/restart-student-api`: Gracefully restarts the student backend service process.
+
+---
 
 \### Expected output
 
-
-
-\- Working chatbot backend
-
-\- SQL database
-
-\- LLM integration
-
-\- Structured logs
-
-\- Health endpoint
-
-\- Controlled failure injection
-
-\- API documentation
+- Working Vectorless RAG chatbot backend (PostgreSQL + FastAPI/Node)
+- Schema-informed Text-to-SQL prompt and response synthesis pipeline
+- Seeded PostgreSQL `students` table
+- Structured JSON logging capturing query, SQL, and error states
+- Controlled failure simulation suite (`/simulate/*`)
+- Allowlisted verification and recovery endpoints for Om's multi-agent system
+- Clean OpenAPI / Swagger documentation (`/docs`)
 
 
 
@@ -1514,7 +1692,7 @@ flowchart TD
 
 
 
-Everyone must agree on these interfaces early.
+Everyone must agree on these interfaces early. Work on separate feature branches and keep [CHECKLIST.md](CHECKLIST.md) updated as each integration milestone is verified.
 
 
 
