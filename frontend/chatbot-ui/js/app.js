@@ -13,14 +13,15 @@ const getMockData = (query) => {
 
 // Application Configuration
 const CONFIG = {
-  mode: localStorage.getItem('app_mode') || 'demo', // 'demo' or 'live'
+  mode: localStorage.getItem('app_mode') || 'live', // 'demo' or 'live'
   backendUrl: localStorage.getItem('backend_url') || 'http://localhost:8000',
   pollInterval: parseInt(localStorage.getItem('poll_interval') || '5', 10),
   activeIncident: false
 };
 
 // Global State
-let currentIncident = null;
+const DEMO_INCIDENT_ID = 'INC-2026-018';
+let currentIncident = null; // request_id of the last failed live /chat call
 
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -113,7 +114,11 @@ export async function handleChatSubmit(e) {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        triggerIncidentMode(errData.detail || 'Database Connection Pool Exhausted (HTTP 500)');
+        errData.http_status = response.status;
+        if (response.status >= 500) {
+          currentIncident = errData.request_id || currentIncident;
+          triggerIncidentMode(errData.message || 'Backend returned HTTP ' + response.status);
+        }
         appendIncidentErrorResponse(query, errData);
       } else {
         const data = await response.json();
@@ -149,12 +154,19 @@ function appendBotResponse(data) {
   const row = document.createElement('div');
   row.className = 'message-row assistant';
 
+  // Live backend nests SQL/latency under `metadata` and uses `query` for the user's question;
+  // mock data puts the SQL in `query` directly.
+  const meta = data.metadata || {};
   const studentList = data.students || data.data || data.results || data.records || [];
   const summaryText = data.summary || data.response || data.reply || data.message || 'Here are the matching records from the student database:';
-  const queryStr = data.query || data.sql || data.executed_query || null;
+  const queryStr = meta.generated_sql || data.sql || data.executed_query || (data.metadata ? null : data.query) || null;
+  const latencyMs = Math.round(meta.latency_ms ?? data.latency_ms ?? 120);
 
   let studentTableHTML = '';
-  if (studentList && studentList.length > 0) {
+  if (studentList.length > 0 && !('name' in studentList[0])) {
+    // Aggregate / projection queries (e.g. COUNT) don't return student rows
+    studentTableHTML = renderRowsTable(studentList);
+  } else if (studentList.length > 0) {
     studentTableHTML = `
       <div class="data-table-wrapper">
         <table class="data-table">
@@ -190,7 +202,7 @@ function appendBotResponse(data) {
     queryBadge = `
       <div class="query-chip">
         <span>⚡ <strong>SQL:</strong> <code>${escapeHTML(queryStr)}</code></span>
-        <span style="font-size: 11px; color: #94a3b8;">${data.latency_ms || 120}ms</span>
+        <span style="font-size: 11px; color: #94a3b8;">${latencyMs}ms</span>
       </div>
     `;
   }
@@ -198,12 +210,12 @@ function appendBotResponse(data) {
   row.innerHTML = `
     <div class="avatar bot-avatar">🤖</div>
     <div class="message-bubble">
-      <p>${escapeHTML(summaryText)}</p>
+      ${renderMarkdown(summaryText)}
       ${queryBadge}
       ${studentTableHTML}
       <div class="message-meta">
-        <span>✅ Executed successfully</span> &bull; 
-        <span>Latency: ${data.latency_ms || 120}ms</span> &bull; 
+        <span>✅ Executed successfully</span> &bull;
+        <span>Latency: ${latencyMs}ms</span> &bull;
         <span>${formatTime()}</span>
       </div>
     </div>
@@ -218,19 +230,31 @@ function appendIncidentErrorResponse(query, details = null) {
   const row = document.createElement('div');
   row.className = 'message-row assistant';
 
+  // Live backend errors carry { error_code, message, request_id }; fetch failures carry { error }.
+  const live = details && (details.error_code || details.message || details.error);
+  const httpStatus = (details && details.http_status) || 500;
+  const headline = live && !details.http_status ? 'Backend Unreachable' : `Backend Service Failure (HTTP ${httpStatus})`;
+  const description = live
+    ? escapeHTML(details.message || details.error)
+    : 'The database connection pool is currently exhausted.';
+  const errorHeader = live ? escapeHTML(details.error_code || 'NETWORK_ERROR') : 'sqlalchemy.exc.TimeoutError';
+  const errorLog = live
+    ? `[ERROR] student-api /chat${details.request_id ? ' ' + escapeHTML(details.request_id) : ''}: ${escapeHTML(details.message || details.error)}`
+    : `[ERROR] student-api /chat: QueuePool limit of size 10 overflow 10 reached, connection timed out, timeout 5.00 (Background incident ${DEMO_INCIDENT_ID} triggered)`;
+
   row.innerHTML = `
     <div class="avatar bot-avatar" style="background: #ef4444;">🚨</div>
     <div class="message-bubble" style="border-color: #ef4444; background: rgba(239, 68, 68, 0.05);">
-      <p style="color: #fca5a5; font-weight: 700;">⚠️ Backend Service Failure (HTTP 500)</p>
+      <p style="color: #fca5a5; font-weight: 700;">⚠️ ${headline}</p>
       <p style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">
-        Unable to execute query: "<em>${escapeHTML(query)}</em>". The database connection pool is currently exhausted.
+        Unable to execute query: "<em>${escapeHTML(query)}</em>". ${description}
       </p>
       <div class="incident-error-card">
         <div class="incident-error-header">
-          <span>💥 Error Trace: sqlalchemy.exc.TimeoutError</span>
+          <span>💥 Error Trace: ${errorHeader}</span>
         </div>
         <div class="incident-error-log">
-          [ERROR] student-api /chat: QueuePool limit of size 10 overflow 10 reached, connection timed out, timeout 5.00 (Background incident INC-2026-018 triggered)
+          ${errorLog}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
           <span style="font-size: 11px; color: #f87171;">Multi-agent incident responder notified. Approval email sent.</span>
@@ -240,7 +264,7 @@ function appendIncidentErrorResponse(query, details = null) {
         </div>
       </div>
       <div class="message-meta" style="color: #f87171;">
-        <span>Incident INC-2026-018</span> &bull; <span>${formatTime()}</span>
+        <span>${live && details.request_id ? 'Request ' + escapeHTML(details.request_id) : 'Incident ' + DEMO_INCIDENT_ID}</span> &bull; <span>${formatTime()}</span>
       </div>
     </div>
   `;
@@ -250,10 +274,18 @@ function appendIncidentErrorResponse(query, details = null) {
 }
 
 // Incident Management & Simulation
-function simulateIncident() {
+async function simulateIncident() {
+  if (CONFIG.mode === 'live') {
+    // Inject a real failure; the chat query below then hits the exhausted pool.
+    try {
+      await fetch(`${CONFIG.backendUrl}/simulate/connection-exhaustion`, { method: 'POST' });
+    } catch (e) {
+      console.warn('Failure injection call failed', e);
+    }
+  }
   CONFIG.activeIncident = true;
   triggerIncidentMode("Database Connection Pool Exhausted");
-  
+
   // Also push a failure query to the chat for immediate visual feedback
   const input = document.getElementById('user-input');
   input.value = "Show students with CGPA above 8.5";
@@ -287,6 +319,7 @@ function triggerIncidentMode(reason) {
   document.getElementById('tl-resolved').style.display = 'none';
 
   renderEmailPreview();
+  if (CONFIG.mode === 'live') refreshMetrics();
 }
 
 // DevOps Approval & Remediation Action
@@ -296,50 +329,77 @@ export async function approveIncidentAction() {
   btn.innerHTML = `<span>⏳</span> Executing allowlisted resolution tool...`;
 
   if (CONFIG.mode === 'live') {
+    let result = null;
     try {
-      await fetch(`${CONFIG.backendUrl}/incidents/INC-2026-018/approve`, { method: 'POST' });
+      const res = await fetch(`${CONFIG.backendUrl}/incidents/${currentIncident || DEMO_INCIDENT_ID}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear-connection-pool', approved_by: 'devops-portal' })
+      });
+      result = res.ok ? await res.json() : null;
     } catch (e) {
-      console.warn("Live approve call dispatched", e);
+      console.warn("Live approve call failed", e);
     }
+    btn.disabled = false;
+    btn.innerHTML = `<span>✅</span> Approve Resolution Tool`;
+
+    if (!result || !result.recovered) {
+      alert("⚠️ Resolution tool ran but recovery could NOT be verified.\n\nIncident remains open — escalate for manual investigation.");
+      refreshMetrics();
+      return;
+    }
+    const pool = result.pool_status || {};
+    showRecovered(result.executed_action, `${pool.active_connections}/${pool.max_pool_size}`);
+    currentIncident = null;
+    alert(`✅ Resolution Approved!\n\nTool '${result.executed_action}' executed successfully.\nDatabase pool: ${pool.active_connections}/${pool.max_pool_size} active.\nRecovery verified via /health (can_query: ${result.database_health.can_query}).`);
+    return;
   }
 
   // Simulate tool execution & recovery verification
   setTimeout(() => {
     btn.disabled = false;
     btn.innerHTML = `<span>✅</span> Approve Resolution Tool`;
-    
-    // Recovery metrics update
-    CONFIG.activeIncident = false;
-    updateStatusBadge(false);
-
-    document.getElementById('incident-banner').classList.add('hidden');
-    document.getElementById('stat-connections').textContent = '14 / 100';
-    document.getElementById('stat-connections').className = 'stat-val recovered';
-    document.getElementById('stat-latency').textContent = '180 ms';
-    document.getElementById('stat-latency').className = 'stat-val recovered';
-    document.getElementById('stat-error-rate').textContent = '0.0%';
-    document.getElementById('stat-error-rate').className = 'stat-val recovered';
-    document.getElementById('stat-health').textContent = 'HEALTHY';
-    document.getElementById('stat-health').className = 'stat-val recovered';
-    document.getElementById('incident-status-tag').textContent = 'RECOVERY VERIFIED';
-    document.getElementById('incident-status-tag').style.color = '#10b981';
-
-    // Show resolved timeline item
-    document.getElementById('tl-resolved').style.display = 'block';
-
-    // Add notification to chat
-    appendRecoveryNotice();
+    showRecovered();
     alert("✅ Resolution Approved!\n\nTool 'restart_student_api()' executed successfully.\nDatabase connections recycled: 100/100 -> 14/100.\nError rate dropped to 0.0%.\nService is now 100% HEALTHY!");
   }, 1200);
 }
 window.approveIncidentAction = approveIncidentAction;
 
+function showRecovered(action, poolText) {
+  // Recovery metrics update
+  CONFIG.activeIncident = false;
+  updateStatusBadge(false);
+
+  document.getElementById('incident-banner').classList.add('hidden');
+  document.getElementById('stat-connections').textContent = '14 / 100';
+  document.getElementById('stat-connections').className = 'stat-val recovered';
+  document.getElementById('stat-latency').textContent = '180 ms';
+  document.getElementById('stat-latency').className = 'stat-val recovered';
+  document.getElementById('stat-error-rate').textContent = '0.0%';
+  document.getElementById('stat-error-rate').className = 'stat-val recovered';
+  document.getElementById('stat-health').textContent = 'HEALTHY';
+  document.getElementById('stat-health').className = 'stat-val recovered';
+  document.getElementById('incident-status-tag').textContent = 'RECOVERY VERIFIED';
+  document.getElementById('incident-status-tag').style.color = '#10b981';
+
+  // Show resolved timeline item
+  document.getElementById('tl-resolved').style.display = 'block';
+
+  // Add notification to chat
+  appendRecoveryNotice(action, poolText);
+  if (CONFIG.mode === 'live') refreshMetrics();
+}
+
 export async function rejectIncidentAction() {
   if (CONFIG.mode === 'live') {
     try {
-      await fetch(`${CONFIG.backendUrl}/incidents/INC-2026-018/reject`, { method: 'POST' });
+      await fetch(`${CONFIG.backendUrl}/incidents/${currentIncident || DEMO_INCIDENT_ID}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejected_by: 'devops-portal' })
+      });
     } catch (e) {
-      console.warn("Live reject call dispatched", e);
+      console.warn("Live reject call failed", e);
     }
   }
   document.getElementById('incident-status-tag').textContent = 'REMEDIATION REJECTED';
@@ -348,7 +408,15 @@ export async function rejectIncidentAction() {
 }
 window.rejectIncidentAction = rejectIncidentAction;
 
-function resetIncident() {
+async function resetIncident() {
+  if (CONFIG.mode === 'live') {
+    try {
+      await fetch(`${CONFIG.backendUrl}/simulate/reset`, { method: 'POST' });
+    } catch (e) {
+      console.warn('Simulation reset call failed', e);
+    }
+    currentIncident = null;
+  }
   CONFIG.activeIncident = false;
   updateStatusBadge(false);
   document.getElementById('incident-banner').classList.add('hidden');
@@ -367,10 +435,11 @@ function resetIncident() {
   document.getElementById('tl-analyzer').style.display = 'none';
   document.getElementById('tl-email').style.display = 'none';
   document.getElementById('tl-resolved').style.display = 'none';
+  if (CONFIG.mode === 'live') refreshMetrics();
 }
 window.resetIncident = resetIncident;
 
-function appendRecoveryNotice() {
+function appendRecoveryNotice(action = 'restart_student_api()', poolText = '14/100') {
   const container = document.getElementById('messages-container');
   const row = document.createElement('div');
   row.className = 'message-row assistant';
@@ -379,7 +448,7 @@ function appendRecoveryNotice() {
     <div class="message-bubble" style="border-color: #10b981; background: rgba(16, 185, 129, 0.08);">
       <p style="color: #34d399; font-weight: 700;">🟢 Incident Resolved &amp; Verified</p>
       <p style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">
-        DevOps approved action <code>restart_student_api()</code>. Connection pool refreshed (14/100 active).
+        DevOps approved action <code>${escapeHTML(action)}</code>. Connection pool refreshed (${escapeHTML(poolText)} active).
         Service recovery verified across <code>/health</code> endpoints. Normal query execution resumed.
       </p>
       <div class="message-meta" style="color: #34d399;">
@@ -406,28 +475,53 @@ function updateStatusBadge(isIncident) {
 
 // Background Health Poller (for Live Backend)
 function startHealthPoller() {
-  setInterval(async () => {
-    if (CONFIG.mode === 'live') {
-      try {
-        const res = await fetch(`${CONFIG.backendUrl}/health`, { signal: AbortSignal.timeout(3000) });
-        if (res.ok) {
-          if (CONFIG.activeIncident) {
-            CONFIG.activeIncident = false;
-            updateStatusBadge(false);
-          }
-        } else {
-          if (!CONFIG.activeIncident) {
-            triggerIncidentMode('Backend returned unhealthy status');
-          }
-        }
-      } catch (e) {
-        // Only trigger if we were healthy
-        if (!CONFIG.activeIncident) {
-          triggerIncidentMode('Backend connection failed');
-        }
+  pollHealth();
+  setInterval(pollHealth, CONFIG.pollInterval * 1000);
+}
+
+async function pollHealth() {
+  if (CONFIG.mode !== 'live') return;
+  try {
+    const res = await fetch(`${CONFIG.backendUrl}/health`, { signal: AbortSignal.timeout(3000) });
+    // /health answers 200 even when the pool is exhausted; the verdict is in `status`.
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body.status === 'healthy') {
+      if (CONFIG.activeIncident) {
+        CONFIG.activeIncident = false;
+        updateStatusBadge(false);
+        document.getElementById('incident-banner').classList.add('hidden');
       }
+    } else if (!CONFIG.activeIncident) {
+      triggerIncidentMode((body.database && body.database.error) || 'Backend returned unhealthy status');
     }
-  }, CONFIG.pollInterval * 1000);
+  } catch (e) {
+    // Only trigger if we were healthy
+    if (!CONFIG.activeIncident) {
+      triggerIncidentMode('Backend connection failed');
+    }
+  }
+  refreshMetrics();
+}
+
+// Populate DevOps portal stats from the backend's GET /metrics
+async function refreshMetrics() {
+  if (CONFIG.mode !== 'live') return;
+  try {
+    const res = await fetch(`${CONFIG.backendUrl}/metrics`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return;
+    const m = await res.json();
+    const set = (id, text, alert) => {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = alert ? 'stat-val alert' : 'stat-val recovered';
+    };
+    set('stat-connections', `${m.active_db_connections} / ${m.max_db_connections}`, m.pool_exhausted);
+    set('stat-latency', `${Math.round(m.avg_latency_ms).toLocaleString()} ms`, m.avg_latency_ms > 2000);
+    set('stat-error-rate', `${m.error_rate_percent.toFixed(1)}%`, m.error_rate_percent > 10);
+    set('stat-health', m.pool_exhausted ? 'DEGRADED' : 'HEALTHY', m.pool_exhausted);
+  } catch (e) {
+    console.warn('Metrics refresh failed', e);
+  }
 }
 
 // Render HTML Email Template into Preview Frame
@@ -582,8 +676,52 @@ function formatTime() {
 }
 
 function escapeHTML(str) {
-  return String(str).replace(/[&<>'"]/g, 
+  return String(str).replace(/[&<>'"]/g,
     tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
   );
+}
+
+// Minimal Markdown for LLM answers (paragraphs, headings, bullets, tables, bold/italic/code).
+// Escapes first, so model output can never inject HTML.
+function renderMarkdown(md) {
+  const inline = (s) => escapeHTML(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+  const cells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+  const lines = String(md).split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const next = (lines[i + 1] || '').trim();
+    if (line.startsWith('|') && /^\|?\s*:?-{3,}/.test(next)) {
+      const head = cells(line);
+      const rows = [];
+      i += 1; // skip the |---| separator
+      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|')) rows.push(cells(lines[++i]));
+      out.push(`<div class="data-table-wrapper"><table class="data-table"><thead><tr>${head.map(h => `<th>${inline(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+    } else if (/^#{1,6}\s+/.test(line)) {
+      out.push(`<p><strong>${inline(line.replace(/^#{1,6}\s+/, ''))}</strong></p>`);
+    } else if (/^[-*]\s+/.test(line)) {
+      out.push(`<p>• ${inline(line.replace(/^[-*]\s+/, ''))}</p>`);
+    } else if (line) {
+      out.push(`<p>${inline(line)}</p>`);
+    }
+  }
+  return out.join('');
+}
+
+// Generic table for non-student result rows (e.g. SELECT COUNT(*) ...)
+function renderRowsTable(rows) {
+  const cols = Object.keys(rows[0]);
+  return `
+    <div class="data-table-wrapper">
+      <table class="data-table">
+        <thead><tr>${cols.map(c => `<th>${escapeHTML(c)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${escapeHTML(r[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
 }
 
