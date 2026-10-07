@@ -292,9 +292,12 @@ async def approve_incident(incident_id: str, approved_by: str = "devops") -> Inc
 
     # Capture pre-remediation metrics for comparison
     pre_metrics_raw = await collect_metrics()
-    pre_metrics = pre_metrics_raw.get("metrics", {}) if pre_metrics_raw.get("success") else None
+    tool_kwargs = {}
+    if tool_name == "scale_student_api":
+        # Scale up pool to 10 connections to accommodate surge
+        tool_kwargs["pool_size"] = 10
 
-    resolution_result = await call_remediation_tool(tool_name)
+    resolution_result = await call_remediation_tool(tool_name, **tool_kwargs)
     add_event(
         incident, "resolution",
         f"Tool '{tool_name}' executed: success={resolution_result.success}",

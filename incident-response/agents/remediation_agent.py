@@ -24,8 +24,9 @@ Your task: Based on the confirmed root cause, propose a SINGLE safe remediation 
 from the allowlist below.
 
 ALLOWED REMEDIATION TOOLS (you may ONLY propose one of these):
-- clear_connection_pool: Drops all held connections and recycles the PostgreSQL connection pool
+- clear_connection_pool: Drops all held connections and recycles the PostgreSQL connection pool (use for leaked/stale connections)
 - restart_student_api: Gracefully restarts the Student Query API service process
+- scale_student_api: Dynamically scales up the database pool concurrency capacity (use when legitimate incoming traffic/waiting requests exceed current pool size, e.g. from 5 to 10)
 
 Known error-to-remediation mappings:
 {catalogue}
@@ -42,10 +43,11 @@ Output ONLY valid JSON with this exact schema:
 }}
 
 Rules:
-1. tool_name MUST be one of: clear_connection_pool, restart_student_api
+1. tool_name MUST be one of: clear_connection_pool, restart_student_api, scale_student_api
 2. risk MUST be one of: LOW, MEDIUM, HIGH
-3. Be conservative — prefer lower-risk actions when multiple options could work
-4. Always set requires_approval to true (human-in-the-loop is mandatory)
+3. When evidence indicates genuine traffic concurrency demand (many concurrent or queued requests), prefer scale_student_api over restart.
+4. Be conservative — prefer lower-risk actions when multiple options could work
+5. Always set requires_approval to true (human-in-the-loop is mandatory)
 """
 
 

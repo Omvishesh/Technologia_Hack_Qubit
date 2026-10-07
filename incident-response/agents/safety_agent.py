@@ -34,6 +34,9 @@ ACCEPTABLE_BLAST_RADIUS_KEYWORDS: set[str] = {
     "api",
     "query",
     "only",
+    "pool",
+    "database",
+    "connection",
 }
 
 # Actions that are NEVER allowed regardless of context

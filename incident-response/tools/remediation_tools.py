@@ -30,6 +30,7 @@ from ..models import ToolResult
 ALLOWED_REMEDIATION_ACTIONS: set[str] = {
     "clear_connection_pool",
     "restart_student_api",
+    "scale_student_api",
 }
 
 
@@ -37,7 +38,7 @@ ALLOWED_REMEDIATION_ACTIONS: set[str] = {
 # Internal HTTP helper
 # ─────────────────────────────────────────────────────────────
 
-async def _call_remediation_endpoint(path: str, tool_name: str) -> ToolResult:
+async def _call_remediation_endpoint(path: str, tool_name: str, json_data: dict[str, Any] | None = None) -> ToolResult:
     """
     Make a POST request to a backend remediation endpoint and wrap
     the response in a ToolResult.
@@ -48,7 +49,7 @@ async def _call_remediation_endpoint(path: str, tool_name: str) -> ToolResult:
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url)
+            response = await client.post(url, json=json_data)
             elapsed_ms = (time.monotonic() - start) * 1000
 
             if response.status_code == 200:
@@ -96,7 +97,7 @@ async def _call_remediation_endpoint(path: str, tool_name: str) -> ToolResult:
 # Public remediation tool functions
 # ─────────────────────────────────────────────────────────────
 
-async def clear_connection_pool() -> ToolResult:
+async def clear_connection_pool(**kwargs: Any) -> ToolResult:
     """
     Drop all held connections and recycle the PostgreSQL connection pool.
 
@@ -107,7 +108,7 @@ async def clear_connection_pool() -> ToolResult:
     )
 
 
-async def restart_student_api() -> ToolResult:
+async def restart_student_api(**kwargs: Any) -> ToolResult:
     """
     Gracefully restart the Student Query API service process.
 
@@ -118,6 +119,17 @@ async def restart_student_api() -> ToolResult:
     )
 
 
+async def scale_student_api(pool_size: int = 10, **kwargs: Any) -> ToolResult:
+    """
+    Dynamically scale database pool concurrency capacity.
+
+    Used when demand/incoming request volume exceeds current pool size.
+    """
+    return await _call_remediation_endpoint(
+        "/tools/scale-student-api", "scale_student_api", json_data={"pool_size": pool_size}
+    )
+
+
 # ─────────────────────────────────────────────────────────────
 # Tool registry — maps tool names to callables
 # ─────────────────────────────────────────────────────────────
@@ -125,6 +137,7 @@ async def restart_student_api() -> ToolResult:
 REMEDIATION_TOOLS: dict[str, Any] = {
     "clear_connection_pool": clear_connection_pool,
     "restart_student_api": restart_student_api,
+    "scale_student_api": scale_student_api,
 }
 
 
@@ -133,7 +146,7 @@ def is_action_allowed(tool_name: str) -> bool:
     return tool_name in ALLOWED_REMEDIATION_ACTIONS
 
 
-async def call_remediation_tool(tool_name: str) -> ToolResult:
+async def call_remediation_tool(tool_name: str, **kwargs: Any) -> ToolResult:
     """
     Dispatch a remediation tool call by name.
 
@@ -146,5 +159,5 @@ async def call_remediation_tool(tool_name: str) -> ToolResult:
             error=f"BLOCKED: '{tool_name}' is NOT in the allowed remediation actions. "
                   f"Allowed: {ALLOWED_REMEDIATION_ACTIONS}",
         )
-    return await REMEDIATION_TOOLS[tool_name]()
+    return await REMEDIATION_TOOLS[tool_name](**kwargs)
 
