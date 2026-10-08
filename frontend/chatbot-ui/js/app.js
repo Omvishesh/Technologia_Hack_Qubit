@@ -310,7 +310,10 @@ async function pollIncident() {
     const inc = await res.json();
     t.failures = 0;
     t.inc = inc;
-    if (inc.status !== t.status) {
+    // Redraw on a status change or new timeline events (e.g. email / phone alert sent)
+    const signature = `${inc.status}:${(inc.timeline || []).length}`;
+    if (signature !== t.signature) {
+      t.signature = signature;
       t.status = inc.status;
       renderTracker(inc);
     }
@@ -340,6 +343,7 @@ function renderTracker(inc, note, t = tracker) {
   const confidence = inc && inc.root_cause ? Math.round(inc.root_cause.confidence * 100) : null;
   const action = inc && inc.remediation && inc.remediation.action;
   const phoned = inc && (inc.timeline || []).some(e => e.stage === 'phone' && /sent/i.test(e.description));
+  const emailed = inc && (inc.timeline || []).some(e => e.stage === 'email' && /^Email sent/i.test(e.description));
 
   // [title, detail, state] — state: done | active | pending | failed
   const steps = [
@@ -351,7 +355,7 @@ function renderTracker(inc, note, t = tracker) {
       cause && at >= 4 ? 'done' : 'pending'],
     ['DevOps approval', status === 'rejected' ? 'The engineer rejected the automated fix — manual investigation needed'
       : status === 'resolved' && !inc.approved_by ? 'Not needed — the service recovered on its own'
-      : at === 7 ? `Fix proposed: ${action || 'remediation'} · approval email sent${phoned ? ' · 📱 phone alerted' : ''}`
+      : at === 7 ? `Fix proposed: ${action || 'remediation'} · ${emailed ? 'approval email sent' : 'sending approval email…'}${phoned ? ' · 📱 phone alerted' : ''}`
       : at >= 8 || status === 'recovery_failed' ? `Approved: ${action || 'remediation'}`
       : at >= 4 ? 'Preparing fix and running safety checks…' : '',
       status === 'rejected' ? 'failed' : at >= 8 || status === 'recovery_failed' ? 'done' : at >= 4 ? 'active' : 'pending'],
