@@ -28,8 +28,8 @@ def check_db_health():
 
 @router.get("/check-backend-load")
 def check_backend_load():
-    """Returns current process CPU usage, memory RSS in MB, and total requests."""
-    return metrics_service.get_system_load()
+    """Returns current process CPU usage, memory RSS in MB, and requests in progress right now."""
+    return metrics_service.get_system_load(extra_in_flight=db_manager.surge_clients)
 
 # ==========================================
 # 2. Resolution Tools (Allowlisted Remediation)

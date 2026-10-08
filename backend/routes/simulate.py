@@ -4,9 +4,15 @@ Failure simulation endpoints for controlled incident demonstration.
 from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from backend.app.config import settings
 from backend.database.connection import db_manager
 
 router = APIRouter(prefix="/simulate", tags=["Failure Simulation"])
+
+class SurgeRequest(BaseModel):
+    clients: int = Field(9, ge=1, le=50, description="Simulated concurrent users (default 9 > pool of 5)")
+    hold_seconds: float = Field(3.0, ge=0.5, le=30, description="How long each query holds a DB connection")
+    duration_seconds: int = Field(300, ge=10, le=3600, description="Auto-stop after this many seconds")
 
 class TimeoutSimRequest(BaseModel):
     delay_seconds: float = Field(5.0, description="Delay duration to inject")
@@ -69,13 +75,33 @@ def simulate_invalid_sql():
         "message": "Next queries will simulate malformed SQL generation."
     }
 
+@router.post("/traffic-surge")
+def simulate_traffic_surge(req: SurgeRequest = SurgeRequest()):
+    """
+    Legitimate traffic spike: more concurrent users than DB pool slots, so requests
+    genuinely queue for a connection and user queries time out. Unlike
+    connection-exhaustion (leaked connections -> clear the pool), the right fix here
+    is to scale the pool. Stops on /simulate/reset or after duration_seconds.
+    """
+    db_manager.start_traffic_surge(req.clients, req.hold_seconds, req.duration_seconds)
+    return {
+        "status": "incident_injected",
+        "scenario": "TRAFFIC_SURGE",
+        "message": f"{req.clients} simulated users now competing for {settings.DB_POOL_SIZE} DB connections.",
+        "clients": req.clients,
+        "pool_size": settings.DB_POOL_SIZE,
+        "duration_seconds": req.duration_seconds,
+    }
+
 @router.post("/reset")
 def reset_simulations():
-    """Resets all injected failures and restores normal system operations."""
+    """Resets all injected failures (incl. traffic surge and pool scaling) and restores normal operations."""
+    db_manager.stop_traffic_surge()
+    settings.DB_POOL_SIZE = db_manager.default_pool_size
     db_manager.clear_pool()
     return {
         "status": "success",
-        "message": "All injected failures cleared and connection pool recycled.",
+        "message": "All injected failures cleared, traffic surge stopped, pool size restored and recycled.",
         "pool_status": db_manager.get_pool_status()
     }
 

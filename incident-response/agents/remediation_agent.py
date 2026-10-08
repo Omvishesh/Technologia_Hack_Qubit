@@ -42,10 +42,19 @@ Output ONLY valid JSON with this exact schema:
     "estimated_recovery_seconds": 30
 }}
 
+A full connection pool has two different causes. Use the VERIFICATION TOOL RESULTS to tell them apart:
+- Leaked / stale connections: the pool is full but the backend is quiet —
+  active_http_requests is about 0-1 and waiting_requests is about 0-1.
+  Fix: clear_connection_pool.
+- Genuine traffic demand: more requests in progress than pool slots
+  (active_http_requests > max_pool_size) and requests are queuing (waiting_requests > 0).
+  Clearing the pool would not help — the traffic refills it immediately. Fix: scale_student_api.
+
 Rules:
 1. tool_name MUST be one of: clear_connection_pool, restart_student_api, scale_student_api
 2. risk MUST be one of: LOW, MEDIUM, HIGH
-3. When evidence indicates genuine traffic concurrency demand (many concurrent or queued requests), prefer scale_student_api over restart.
+3. For a full pool, decide between clear_connection_pool and scale_student_api using the criteria above,
+   not the generic error-to-remediation mapping.
 4. Be conservative — prefer lower-risk actions when multiple options could work
 5. Always set requires_approval to true (human-in-the-loop is mandatory)
 """
@@ -78,6 +87,15 @@ async def propose_remediation(incident: Incident) -> Remediation:
             f"  Evidence: {json.dumps(incident.root_cause.evidence)}",
             "",
         ])
+
+    if incident.verification_results:
+        # Measured numbers (pool usage, queued and in-flight requests) — needed to tell
+        # leaked connections apart from genuine demand
+        user_prompt_parts.append("VERIFICATION TOOL RESULTS:")
+        for tr in incident.verification_results:
+            outcome = json.dumps(tr.result) if tr.success else f"FAILED: {tr.error}"
+            user_prompt_parts.append(f"  {tr.tool_name}: {outcome}")
+        user_prompt_parts.append("")
 
     if incident.log_summary:
         user_prompt_parts.extend([

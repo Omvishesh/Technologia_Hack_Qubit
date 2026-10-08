@@ -11,6 +11,7 @@ from backend.routes.logs import router as logs_router
 from backend.routes.simulate import router as simulate_router
 from backend.routes.tools import router as tools_router
 from backend.routes.incidents import router as incidents_router
+from backend.services.metrics_service import metrics_service
 from database.init_db import main as init_database
 
 app = FastAPI(
@@ -27,6 +28,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def count_in_flight_requests(request, call_next):
+    """Track /chat requests being served right now — the agents read this as current load."""
+    if request.url.path != "/chat":
+        return await call_next(request)
+    metrics_service.in_flight += 1
+    try:
+        return await call_next(request)
+    finally:
+        metrics_service.in_flight -= 1
 
 # Include all route blueprints
 app.include_router(chat_router)

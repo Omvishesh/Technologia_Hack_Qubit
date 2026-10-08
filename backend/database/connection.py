@@ -20,6 +20,12 @@ class DatabaseManager:
         self._held_connections = []
         self._waiting_requests = 0
         self._active_connections = 0
+        self.default_pool_size = settings.DB_POOL_SIZE
+        # Traffic-surge simulation (simulated clients running real queries)
+        self._surge_stop = threading.Event()
+        self.surge_clients = 0
+        self.surge_active = 0
+        self.surge_waiting = 0
         self._init_engine()
 
     def _init_engine(self):
@@ -124,6 +130,57 @@ class DatabaseManager:
                 pass
         self._init_engine()
 
+    def start_traffic_surge(self, clients: int = 9, hold_seconds: float = 3.0, duration_seconds: int = 300):
+        """
+        Simulate a legitimate traffic spike: `clients` simulated users run real queries
+        back-to-back, each holding a pooled connection for `hold_seconds`. With more
+        clients than pool slots, requests genuinely queue for a connection — the
+        signature of real demand (not leaked connections), which scaling the pool fixes.
+        Stops on stop_traffic_surge() or after `duration_seconds`.
+        """
+        self.stop_traffic_surge()
+        stop = self._surge_stop = threading.Event()
+        deadline = time.time() + duration_seconds
+
+        def client():
+            with self._lock:
+                self.surge_clients += 1
+            try:
+                while not stop.is_set() and time.time() < deadline:
+                    with self._lock:
+                        self.surge_waiting += 1
+                    try:
+                        conn = self.engine.connect()  # blocks while every pool slot is busy
+                    except Exception:
+                        continue  # pool timeout: retry, like a real client would
+                    finally:
+                        with self._lock:
+                            self.surge_waiting -= 1
+                    with self._lock:
+                        self.surge_active += 1
+                    try:
+                        if conn.dialect.name == "postgresql":
+                            conn.execute(text("SELECT pg_sleep(:s)"), {"s": hold_seconds})
+                        else:
+                            conn.execute(text("SELECT 1"))
+                            time.sleep(hold_seconds)
+                    except Exception:
+                        time.sleep(0.5)
+                    finally:
+                        conn.close()
+                        with self._lock:
+                            self.surge_active -= 1
+            finally:
+                with self._lock:
+                    self.surge_clients -= 1
+
+        for _ in range(clients):
+            threading.Thread(target=client, daemon=True, name="traffic-surge").start()
+
+    def stop_traffic_surge(self):
+        """Stop simulated clients; each finishes its current query (<= hold_seconds)."""
+        self._surge_stop.set()
+
     def set_unavailable(self, status: bool = True):
         self.is_unavailable = status
 
@@ -135,11 +192,11 @@ class DatabaseManager:
 
     def get_pool_status(self) -> Dict[str, Any]:
         """Returns connection pool metrics for Om's verification tools."""
-        current_active = len(self._held_connections) + self._active_connections
+        current_active = len(self._held_connections) + self._active_connections + self.surge_active
         return {
             "active_connections": min(current_active, settings.DB_POOL_SIZE),
             "max_pool_size": settings.DB_POOL_SIZE,
-            "waiting_requests": self._waiting_requests,
+            "waiting_requests": self._waiting_requests + self.surge_waiting,
             "pool_exhausted": self.is_exhausted or (current_active >= settings.DB_POOL_SIZE),
         }
 
