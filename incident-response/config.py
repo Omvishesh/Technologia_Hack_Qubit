@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     smtp_from: str = Field("incident-system@hackqubit.local", alias="SMTP_FROM")
     email_mock_mode: bool = Field(True, alias="EMAIL_MOCK_MODE")
 
+    # ── Phone alert (ntfy push notification) ─────────────────
+    ntfy_server: str = Field("https://ntfy.sh", alias="NTFY_SERVER")
+    ntfy_topic: str = Field("", alias="NTFY_TOPIC")   # empty = phone alerts off
+
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),
         "env_file_encoding": "utf-8",

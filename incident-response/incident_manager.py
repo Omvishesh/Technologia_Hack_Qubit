@@ -34,6 +34,7 @@ from .tools.remediation_tools import call_remediation_tool
 
 # Email & Recovery
 from .email_sender import send_approval_email, send_resolution_email
+from .phone_alert import send_phone_alert
 from .recovery import verify_recovery
 
 logger = logging.getLogger("incident-response.manager")
@@ -262,6 +263,11 @@ async def run_pipeline(incident: Incident) -> Incident:
             {"email_sent": email_sent},
         )
 
+        # Ring the engineer's phone (ntfy) — sent even if the email failed
+        if get_settings().ntfy_topic:
+            phoned = await send_phone_alert(incident, "approval")
+            add_event(incident, "phone", f"Phone alert {'sent' if phoned else 'FAILED'}", {"phone_alert": phoned})
+
         store_incident(incident)
 
         logger.info("═══ PIPELINE COMPLETE: %s ═══", incident.id)
@@ -366,6 +372,8 @@ async def approve_incident(incident_id: str, approved_by: str = "devops") -> Inc
         # Dispatch resolution confirmation email to DevOps engineer
         await send_resolution_email(incident)
         add_event(incident, "email", "Resolution confirmation email dispatched to engineer")
+        if get_settings().ntfy_topic:
+            await send_phone_alert(incident, "resolved")
     else:
         incident.status = IncidentStatus.RECOVERY_FAILED
         add_event(

@@ -101,6 +101,8 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM:-incident.alert08@gmail.com}
       - EMAIL_MOCK_MODE=${EMAIL_MOCK_MODE:-false}
+      - NTFY_SERVER=${NTFY_SERVER:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
     volumes:
       - shared-logs:/app/backend/logs:ro
       - ./incident-response/emails:/app/incident-response/emails
